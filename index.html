@@ -118,8 +118,9 @@
   .chk-list::-webkit-scrollbar{width:8px;}
   .chk-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px;}
   .chk-list::-webkit-scrollbar-thumb:hover{background:var(--muted2);}
-  .chk-item{display:flex;align-items:center;gap:6px;font-size:12px;background:var(--panel2);padding:5px 9px;border-radius:7px;transition:background .12s;}
+  .chk-item{display:flex;align-items:center;gap:6px;font-size:12px;background:var(--panel2);padding:5px 9px;border-radius:7px;transition:background .18s ease, border-color .18s ease, transform .18s ease;will-change:transform, background; border:1px solid transparent;}
   .chk-item:hover{background:var(--border-soft);}
+  .chk-item.selected{background:rgba(91,124,250,.08);border-color:rgba(91,124,250,.26);transform:translateY(-1px);}
 
   .note{font-size:12.5px;color:var(--warn);background:rgba(255,181,69,.08);border:1px solid rgba(255,181,69,.25);padding:11px 13px;border-radius:10px;margin-top:12px;line-height:1.5;}
   .err{font-size:13px;color:var(--danger);background:rgba(255,93,108,.08);border:1px solid rgba(255,93,108,.25);padding:11px 13px;border-radius:10px;margin-top:12px;line-height:1.5;}
@@ -127,9 +128,18 @@
   .good-note code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:11.5px;}
 
   .layer-list{margin-top:14px;}
-  .layer-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--panel2);border-radius:9px;margin-bottom:6px;font-size:13px;border:1px solid var(--border-soft);transition:border-color .12s;}
-  .layer-row:hover{border-color:var(--border);}
-  .layer-row .fname{font-family:var(--mono);font-size:12px;color:var(--text);}
+  .layer-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;background:var(--panel2);border-radius:10px;margin-bottom:8px;font-size:13px;border:1px solid var(--border-soft);transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease;will-change:transform, border-color, box-shadow;}
+  .layer-row:hover{border-color:var(--border);box-shadow:0 8px 18px -16px rgba(91,124,250,.55);}
+  .layer-row.selected{border-color:rgba(91,124,250,.7);background:rgba(91,124,250,.08);box-shadow:0 0 0 1px rgba(91,124,250,.18), 0 8px 22px -18px rgba(91,124,250,.8);transform:translateY(-1px);}
+  .layer-main{display:flex;align-items:center;gap:12px;flex:1;min-width:0;}
+  .layer-check{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;transform:scale(1);transition:transform .18s ease;}
+  .layer-check:active{transform:scale(.96);}
+  .layer-row .fname{font-family:var(--mono);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .layer-meta{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .layer-download-btn{padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;font-weight:600;cursor:pointer;transition:.15s ease;}
+  .layer-download-btn:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--text);}
+  .selection-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px;}
+  .selection-toolbar .btn{min-height:42px;}
 
   .helptext{font-size:11.5px;color:var(--muted2);margin-top:5px;}
 
@@ -181,7 +191,7 @@ const state = {
     fileA: null, fileB: null,
     mapA: {}, mapB: {},
     filters: {}, groupByField: null, chunkSize: 2000,
-    leftover: null, layers: null, exportFormat: 'xlsx', previewLayerIdx: 0,
+    leftover: null, layers: null, exportFormat: 'xlsx', previewLayerIdx: 0, selectedLayers: [],
   },
   split: {
     step: 1, datasetType: null, // 'master' | 'surveyed' | 'installed'
@@ -189,7 +199,7 @@ const state = {
     mapP: {}, mapS: {},
     statusEnabled: false,
     filters: {}, groupByField: null, chunkSize: 2000,
-    tagged: null, layers: null, exportFormat: 'xlsx', previewLayerIdx: 0,
+    tagged: null, layers: null, exportFormat: 'xlsx', previewLayerIdx: 0, selectedLayers: [],
   }
 };
 
@@ -706,11 +716,23 @@ function renderFilterGroupCard(opts){
         </div>
       </div>
     `);
+    const countBadge = box.querySelector('.pill');
     box.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-      cb.onchange = ()=>{ if(cb.checked) selectedSet.add(cb.value); else selectedSet.delete(cb.value); opts.onRerender(); };
+      cb.onchange = ()=>{
+        if(cb.checked) selectedSet.add(cb.value); else selectedSet.delete(cb.value);
+        if (countBadge) countBadge.textContent = `${selectedSet.size}/${values.length} selected`;
+        cb.closest('.chk-item')?.classList.toggle('selected', cb.checked);
+      };
     });
     box.querySelectorAll('button[data-act]').forEach(btn=>{
-      btn.onclick = ()=>{ if(btn.dataset.act==='all') values.forEach(v=>selectedSet.add(v)); else selectedSet.clear(); opts.onRerender(); };
+      btn.onclick = ()=>{
+        if(btn.dataset.act==='all') values.forEach(v=>selectedSet.add(v)); else selectedSet.clear();
+        box.querySelectorAll('input[type=checkbox]').forEach(input => {
+          input.checked = selectedSet.has(input.value);
+          input.closest('.chk-item')?.classList.toggle('selected', input.checked);
+        });
+        if (countBadge) countBadge.textContent = `${selectedSet.size}/${values.length} selected`;
+      };
     });
     filterArea.appendChild(box);
   });
@@ -769,6 +791,7 @@ function cmpBuildLayers(){
   });
   const layers = chunkIntoLayers(withCoords, c.groupByField, c.chunkSize, COMPARE_LABELS[c.comparisonType].out);
   c.layers = { layers, noCoords, totalFiltered: filtered.length, totalWithCoords: withCoords.length };
+  c.selectedLayers = ensureSelectedLayers(layers, c.selectedLayers);
 }
 
 function chunkIntoLayers(rows, groupByField, chunkSize, prefix){
@@ -788,6 +811,30 @@ function chunkIntoLayers(rows, groupByField, chunkSize, prefix){
     });
   });
   return layers;
+}
+
+function ensureSelectedLayers(layers, selectedLayers){
+  if(!Array.isArray(layers) || !layers.length) return [];
+  const valid = new Set(layers.map((_, idx) => idx));
+  const next = (selectedLayers || []).filter(idx => valid.has(idx));
+  return next.length ? next : layers.map((_, idx) => idx);
+}
+
+function buildZipFromLayers(layers, selectedIndexes, rowConverter, format, filenamePrefix){
+  const zip = new JSZip();
+  const selected = layers.filter((_, idx) => selectedIndexes.includes(idx));
+  selected.forEach(layer=>{
+    const { headers, aoa } = rowConverter(layer.rows);
+    const file = buildExportFile(headers, aoa, format, [1,2]);
+    zip.file(`${layer.filenameBase}.${file.ext}`, file.bytes);
+  });
+  return zip.generateAsync({type:'blob'});
+}
+
+function downloadSingleLayer(layer, rowConverter, format, filenamePrefix){
+  const { headers, aoa } = rowConverter(layer.rows);
+  const file = buildExportFile(headers, aoa, format, [1,2]);
+  triggerDownload(new Blob([file.bytes], { type: file.mime }), `${layer.filenameBase}.${file.ext}`);
 }
 
 function cmpStep4(){
@@ -826,10 +873,25 @@ function cmpStep4(){
 
       <h2 style="margin-top:22px;">Map layers ready for Google My Maps (${L.layers.length} file${L.layers.length!==1?'s':''})</h2>
       <div class="sub">Each file is ≤ ${c.chunkSize} rows. In My Maps: "Add layer" → "Import" → select each file → set Latitude/Longitude as position columns.</div>
-      <div class="layer-list">${L.layers.map(l=>`<div class="layer-row"><span class="fname">▸ ${escapeHtml(l.filenameBase)}.${ext}</span><span class="pill">${l.rows.length} rows</span></div>`).join('')}</div>
-      <div class="actions">
+      <div class="layer-list">
+        ${L.layers.map((l, idx)=>`
+          <div class="layer-row ${c.selectedLayers.includes(idx)?'selected':''}">
+            <div class="layer-main">
+              <input type="checkbox" class="layer-check" data-layer-index="${idx}" ${c.selectedLayers.includes(idx)?'checked':''}>
+              <span class="fname">${escapeHtml(l.filenameBase)}.${ext}</span>
+            </div>
+            <div class="layer-meta">
+              <span class="pill">${l.rows.length} rows</span>
+              <button class="layer-download-btn" data-download-layer="${idx}">Download</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="selection-toolbar">
         <button class="btn secondary" id="back3">← Back to Filters</button>
-        <button class="btn" id="download-zip">↓ Download all layers (.zip)</button>
+        <button class="btn secondary" id="select-all-layers">${c.selectedLayers.length === L.layers.length ? 'Clear all' : 'Select all'}</button>
+        <button class="btn" id="download-selected" ${c.selectedLayers.length ? '' : 'disabled'}>↓ Download selected</button>
+        <button class="btn ghost" id="download-zip">↓ Download all layers (.zip)</button>
         ${L.noCoords.length>0 ? `<button class="btn ghost" id="download-nocoords">↓ Download "no coordinates" report</button>`:''}
       </div>
       <div id="dl-status" style="margin-top:10px;font-size:13px;color:var(--muted);"></div>
@@ -839,7 +901,49 @@ function cmpStep4(){
   wrap.querySelector('#format-toggle-slot').appendChild(renderFormatToggle(c.exportFormat, (fmt)=>{ c.exportFormat=fmt; render(); }));
   wrap.querySelector('#preview-slot').appendChild(renderPreview(L.layers, cmpToMyMapsRows, c.previewLayerIdx, (i)=>{ c.previewLayerIdx=i; render(); }));
 
+  wrap.querySelectorAll('.layer-check').forEach(cb => {
+    cb.onchange = () => {
+      const idx = Number(cb.dataset.layerIndex);
+      const set = new Set(c.selectedLayers);
+      if(cb.checked) set.add(idx); else set.delete(idx);
+      c.selectedLayers = Array.from(set);
+      const rows = wrap.querySelectorAll('.layer-row');
+      rows.forEach(row => {
+        const itemIndex = Number(row.querySelector('.layer-check')?.dataset.layerIndex);
+        row.classList.toggle('selected', c.selectedLayers.includes(itemIndex));
+      });
+      const selectedBtn = wrap.querySelector('#download-selected');
+      if(selectedBtn) selectedBtn.disabled = !c.selectedLayers.length;
+    };
+  });
+  wrap.querySelectorAll('[data-download-layer]').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.downloadLayer);
+      const layer = L.layers[idx];
+      if(!layer) return;
+      const statusEl = $('#dl-status');
+      statusEl.innerHTML = 'Preparing single layer...';
+      downloadSingleLayer(layer, cmpToMyMapsRows, c.exportFormat, COMPARE_LABELS[c.comparisonType].out);
+      statusEl.innerHTML = `Downloaded ${layer.filenameBase} ✓`;
+    };
+  });
+
   wrap.querySelector('#back3').onclick = ()=>{ c.step=3; render(); };
+  wrap.querySelector('#select-all-layers').onclick = ()=>{
+    c.selectedLayers = c.selectedLayers.length === L.layers.length ? [] : L.layers.map((_, idx) => idx);
+    render();
+  };
+  wrap.querySelector('#download-selected').onclick = async ()=>{
+    c.selectedLayers = ensureSelectedLayers(L.layers, c.selectedLayers);
+    if(!c.selectedLayers.length){ $('#dl-status').innerHTML = '<span style="color:var(--warn)">Please select at least one layer.</span>'; return; }
+    const statusEl = $('#dl-status');
+    statusEl.innerHTML = '<span class="loading-ring" style="width:12px;height:12px;"></span> Building selected layers...';
+    try{
+      const blob = await buildZipFromLayers(L.layers, c.selectedLayers, cmpToMyMapsRows, c.exportFormat, COMPARE_LABELS[c.comparisonType].out);
+      triggerDownload(blob, `${COMPARE_LABELS[c.comparisonType].out}_SelectedLayers.zip`);
+      statusEl.innerHTML = 'Selected layers downloaded ✓';
+    }catch(err){ statusEl.innerHTML = `<span style="color:var(--danger)">Failed: ${escapeHtml(err.message)}</span>`; }
+  };
   wrap.querySelector('#download-zip').onclick = cmpDownloadZip;
   const ncBtn = wrap.querySelector('#download-nocoords');
   if(ncBtn) ncBtn.onclick = cmpDownloadNoCoords;
@@ -1081,6 +1185,7 @@ function splBuildLayers(){
   });
   const layers = chunkIntoLayers(withCoords, s.groupByField, s.chunkSize, dt.label.replace(/\s+/g,''));
   s.layers = { layers, noCoords, totalFiltered: filtered.length, totalWithCoords: withCoords.length };
+  s.selectedLayers = ensureSelectedLayers(layers, s.selectedLayers);
 }
 
 function splStep4(){
@@ -1121,10 +1226,25 @@ function splStep4(){
 
       <h2 style="margin-top:22px;">Map layers ready for Google My Maps (${L.layers.length} file${L.layers.length!==1?'s':''})</h2>
       <div class="sub">Each file is ≤ ${s.chunkSize} rows. In My Maps: "Add layer" → "Import" → select each file → set Latitude/Longitude as position columns.</div>
-      <div class="layer-list">${L.layers.map(l=>`<div class="layer-row"><span class="fname">▸ ${escapeHtml(l.filenameBase)}.${ext}</span><span class="pill">${l.rows.length} rows</span></div>`).join('')}</div>
-      <div class="actions">
+      <div class="layer-list">
+        ${L.layers.map((l, idx)=>`
+          <div class="layer-row ${s.selectedLayers.includes(idx)?'selected':''}">
+            <div class="layer-main">
+              <input type="checkbox" class="layer-check" data-layer-index="${idx}" ${s.selectedLayers.includes(idx)?'checked':''}>
+              <span class="fname">${escapeHtml(l.filenameBase)}.${ext}</span>
+            </div>
+            <div class="layer-meta">
+              <span class="pill">${l.rows.length} rows</span>
+              <button class="layer-download-btn" data-download-layer="${idx}">Download</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="selection-toolbar">
         <button class="btn secondary" id="back3">← Back to Filters</button>
-        <button class="btn" id="download-zip">↓ Download all layers (.zip)</button>
+        <button class="btn secondary" id="select-all-layers">${s.selectedLayers.length === L.layers.length ? 'Clear all' : 'Select all'}</button>
+        <button class="btn" id="download-selected" ${s.selectedLayers.length ? '' : 'disabled'}>↓ Download selected</button>
+        <button class="btn ghost" id="download-zip">↓ Download all layers (.zip)</button>
         ${L.noCoords.length>0?`<button class="btn ghost" id="download-nocoords">↓ Download "no coordinates" report</button>`:''}
       </div>
       <div id="dl-status" style="margin-top:10px;font-size:13px;color:var(--muted);"></div>
@@ -1134,7 +1254,49 @@ function splStep4(){
   wrap.querySelector('#format-toggle-slot').appendChild(renderFormatToggle(s.exportFormat, (fmt)=>{ s.exportFormat=fmt; render(); }));
   wrap.querySelector('#preview-slot').appendChild(renderPreview(L.layers, splToMyMapsRows, s.previewLayerIdx, (i)=>{ s.previewLayerIdx=i; render(); }));
 
+  wrap.querySelectorAll('.layer-check').forEach(cb => {
+    cb.onchange = () => {
+      const idx = Number(cb.dataset.layerIndex);
+      const set = new Set(s.selectedLayers);
+      if(cb.checked) set.add(idx); else set.delete(idx);
+      s.selectedLayers = Array.from(set);
+      const rows = wrap.querySelectorAll('.layer-row');
+      rows.forEach(row => {
+        const itemIndex = Number(row.querySelector('.layer-check')?.dataset.layerIndex);
+        row.classList.toggle('selected', s.selectedLayers.includes(itemIndex));
+      });
+      const selectedBtn = wrap.querySelector('#download-selected');
+      if(selectedBtn) selectedBtn.disabled = !s.selectedLayers.length;
+    };
+  });
+  wrap.querySelectorAll('[data-download-layer]').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.downloadLayer);
+      const layer = L.layers[idx];
+      if(!layer) return;
+      const statusEl = $('#dl-status');
+      statusEl.innerHTML = 'Preparing single layer...';
+      downloadSingleLayer(layer, splToMyMapsRows, s.exportFormat, DATASET_TYPES[s.datasetType].label.replace(/\s+/g,''));
+      statusEl.innerHTML = `Downloaded ${layer.filenameBase} ✓`;
+    };
+  });
+
   wrap.querySelector('#back3').onclick = ()=>{ s.step=3; render(); };
+  wrap.querySelector('#select-all-layers').onclick = ()=>{
+    s.selectedLayers = s.selectedLayers.length === L.layers.length ? [] : L.layers.map((_, idx) => idx);
+    render();
+  };
+  wrap.querySelector('#download-selected').onclick = async ()=>{
+    s.selectedLayers = ensureSelectedLayers(L.layers, s.selectedLayers);
+    if(!s.selectedLayers.length){ $('#dl-status').innerHTML = '<span style="color:var(--warn)">Please select at least one layer.</span>'; return; }
+    const statusEl = $('#dl-status');
+    statusEl.innerHTML = '<span class="loading-ring" style="width:12px;height:12px;"></span> Building selected layers...';
+    try{
+      const blob = await buildZipFromLayers(L.layers, s.selectedLayers, splToMyMapsRows, s.exportFormat, DATASET_TYPES[s.datasetType].label.replace(/\s+/g,''));
+      triggerDownload(blob, `${DATASET_TYPES[s.datasetType].label.replace(/\s+/g,'')}_SelectedLayers.zip`);
+      statusEl.innerHTML = 'Selected layers downloaded ✓';
+    }catch(err){ statusEl.innerHTML = `<span style="color:var(--danger)">Failed: ${escapeHtml(err.message)}</span>`; }
+  };
   wrap.querySelector('#download-zip').onclick = splDownloadZip;
   const ncBtn = wrap.querySelector('#download-nocoords');
   if(ncBtn) ncBtn.onclick = splDownloadNoCoords;
