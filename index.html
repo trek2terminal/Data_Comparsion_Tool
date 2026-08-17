@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Comparison Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#0b0e17; --bg-grad: radial-gradient(circle at 20% -10%, #16203f 0%, #0b0e17 55%);
+    --panel:#131a2a; --panel2:#182137; --border:#242e48; --border-soft:#1c2438;
+    --text:#eef1fa; --muted:#8b93ad; --muted2:#5f6786;
+    --accent:#5b7cfa; --accent-soft:rgba(91,124,250,.12); --accent2:#2fd48f;
+    --warn:#ffb545; --danger:#ff5d6c;
+    --radius:14px; --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg-grad),var(--bg);color:var(--text);min-height:100vh;}
+  .wrap{max-width:1120px;margin:0 auto;padding:36px 22px 90px;}
+
+  /* header */
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:14px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand-mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#8b6bff);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 18px rgba(91,124,250,.35);}
+  .brand h1{font-size:19px;margin:0;font-weight:700;letter-spacing:-.01em;}
+  .brand .tag{font-size:11px;color:var(--muted2);font-weight:600;letter-spacing:.04em;text-transform:uppercase;}
+  .mode-badge{font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:.15s;}
+  .mode-badge:hover{border-color:var(--accent);color:var(--text);background:var(--accent-soft);}
+
+  /* stepper */
+  .steps{display:flex;align-items:center;margin:30px 0 26px;}
+  .step-item{display:flex;align-items:center;gap:9px;flex:1;}
+  .step-item:last-child{flex:0;}
+  .step-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--panel2);border:1.5px solid var(--border);color:var(--muted);flex-shrink:0;transition:.25s;}
+  .step-item.active .step-dot{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-soft);transform:scale(1.06);}
+  .step-item.done .step-dot{background:var(--accent2);border-color:var(--accent2);color:#08150f;}
+  .step-label{font-size:12.5px;color:var(--muted);font-weight:600;white-space:nowrap;}
+  .step-item.active .step-label{color:var(--text);}
+  .step-line{flex:1;height:1.5px;background:var(--border);margin:0 10px;transition:.3s;}
+  .step-item.done + .step-item .step-line, .step-line.done{background:var(--accent2);}
+
+  /* cards */
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:26px;margin-bottom:18px;box-shadow:0 1px 0 rgba(255,255,255,.02) inset,0 8px 24px -12px rgba(0,0,0,.5);animation:card-in .28s cubic-bezier(.22,.9,.3,1);}
+  .card h2{font-size:16.5px;margin:0 0 4px;font-weight:700;letter-spacing:-.01em;}
+  .card .sub{color:var(--muted);font-size:13px;margin-bottom:18px;line-height:1.5;}
+  @keyframes card-in{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  /* landing mode cards */
+  .mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;}
+  .mode-card{background:var(--panel2);border:1.5px solid var(--border);border-radius:var(--radius);padding:24px;cursor:pointer;transition:.18s;position:relative;overflow:hidden;}
+  .mode-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 14px 30px -14px rgba(91,124,250,.4);}
+  .mode-card:hover .icon{transform:scale(1.08);}
+  .mode-card .icon{font-size:22px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:700;transition:transform .18s;}
+  .mode-card h3{margin:0 0 6px;font-size:16px;}
+  .mode-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.55;}
+  .mode-card ul{margin:12px 0 0;padding-left:18px;color:var(--muted);font-size:12.5px;line-height:1.7;}
+
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;}
+  .grid-tri{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;}
+
+  /* dataset-type picker (split mode) */
+  .type-card{border:1.5px solid var(--border);background:var(--panel2);border-radius:10px;padding:16px;cursor:pointer;transition:.15s;text-align:center;}
+  .type-card:hover{border-color:var(--accent);transform:translateY(-1px);}
+  .type-card.selected{border-color:var(--accent);background:var(--accent-soft);}
+  .type-card .icon{font-size:17px;font-weight:700;color:var(--accent);width:34px;height:34px;border-radius:9px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;margin:0 auto;}
+  .type-card .name{font-size:13px;font-weight:600;margin-top:6px;}
+  .type-card .desc{font-size:11px;color:var(--muted);margin-top:2px;}
+
+  .dropzone{border:1.5px dashed var(--border);border-radius:12px;padding:24px 16px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel2);position:relative;}
+  .dropzone:hover{border-color:var(--accent);background:var(--accent-soft);}
+  .dropzone.filled{border-style:solid;border-color:var(--accent2);background:rgba(47,212,143,.06);}
+  .dropzone.filled:hover{border-color:var(--accent2);background:rgba(47,212,143,.1);}
+  .dropzone input{display:none;}
+  .dz-icon{font-size:22px;margin-bottom:6px;transition:transform .15s;}
+  .dropzone:hover .dz-icon{transform:translateY(-2px);}
+  .dz-title{font-weight:600;font-size:13.5px;margin-bottom:4px;}
+  .dz-info{font-size:12px;color:var(--muted);line-height:1.5;}
+  .dz-remove{position:absolute;top:8px;right:10px;font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;padding:3px 7px;border-radius:5px;font-weight:600;}
+  .dz-remove:hover{background:rgba(255,93,108,.12);}
+  .optional-tag{font-size:10.5px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:var(--panel2);border:1px solid var(--border);padding:2px 7px;border-radius:5px;}
+
+  label{font-size:12.5px;color:var(--muted);display:block;margin-bottom:7px;font-weight:500;}
+  select,input[type=text],input[type=number]{width:100%;padding:10px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;transition:.15s;}
+  select:focus,input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  select.invalid,input.invalid{border-color:var(--danger);}
+  .req::after{content:' *';color:var(--danger);}
+  .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:14px;}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:9px;border:none;font-size:13.5px;font-weight:600;cursor:pointer;background:var(--accent);color:#fff;transition:.15s;font-family:inherit;box-shadow:0 1px 0 rgba(255,255,255,.08) inset;}
+  .btn:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 6px 16px -6px rgba(91,124,250,.5);}
+  .btn:active:not(:disabled){transform:translateY(0);}
+  .btn:disabled{opacity:.35;cursor:not-allowed;}
+  .btn.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--border);}
+  .btn.secondary:hover:not(:disabled){box-shadow:none;border-color:var(--muted2);}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+  .btn.ghost:hover:not(:disabled){box-shadow:none;color:var(--text);}
+  .btn.tiny{padding:5px 11px;font-size:11.5px;font-weight:500;}
+  .actions{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap;align-items:center;}
+
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0;}
+  .stat{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px;transition:border-color .15s,transform .15s;}
+  .stat:hover{border-color:var(--border-soft);transform:translateY(-1px);}
+  .stat .num{font-size:24px;font-weight:800;font-family:var(--mono);}
+  .stat .lbl{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .stat.good .num{color:var(--accent2);}
+  .stat.bad .num{color:var(--danger);}
+  .stat.warn .num{color:var(--warn);}
+
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;background:var(--panel2);border:1px solid var(--border);margin:2px;font-weight:500;}
+  .pill.status-installed{background:rgba(47,212,143,.12);border-color:rgba(47,212,143,.35);color:var(--accent2);}
+  .pill.status-pending{background:rgba(255,181,69,.12);border-color:rgba(255,181,69,.35);color:var(--warn);}
+
+  .filter-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .chk-list{display:flex;flex-wrap:wrap;gap:8px;max-height:150px;overflow:auto;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--bg);margin-top:7px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+  .chk-list::-webkit-scrollbar{width:8px;}
+  .chk-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px;}
+  .chk-list::-webkit-scrollbar-thumb:hover{background:var(--muted2);}
+  .chk-item{display:flex;align-items:center;gap:6px;font-size:12px;background:var(--panel2);padding:5px 9px;border-radius:7px;transition:background .12s;}
+  .chk-item:hover{background:var(--border-soft);}
+
+  .note{font-size:12.5px;color:var(--warn);background:rgba(255,181,69,.08);border:1px solid rgba(255,181,69,.25);padding:11px 13px;border-radius:10px;margin-top:12px;line-height:1.5;}
+  .err{font-size:13px;color:var(--danger);background:rgba(255,93,108,.08);border:1px solid rgba(255,93,108,.25);padding:11px 13px;border-radius:10px;margin-top:12px;line-height:1.5;}
+  .good-note{font-size:12.5px;color:var(--accent2);background:rgba(47,212,143,.07);border:1px solid rgba(47,212,143,.22);padding:11px 13px;border-radius:10px;margin-top:12px;line-height:1.5;}
+  .good-note code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:11.5px;}
+
+  .layer-list{margin-top:14px;}
+  .layer-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--panel2);border-radius:9px;margin-bottom:6px;font-size:13px;border:1px solid var(--border-soft);transition:border-color .12s;}
+  .layer-row:hover{border-color:var(--border);}
+  .layer-row .fname{font-family:var(--mono);font-size:12px;color:var(--text);}
+
+  .helptext{font-size:11.5px;color:var(--muted2);margin-top:5px;}
+
+  /* loading overlay */
+  .loading-overlay{position:fixed;inset:0;background:rgba(8,10,17,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:50;}
+  .loading-box{background:var(--panel);border:1px solid var(--border);padding:26px 32px;border-radius:16px;min-width:280px;box-shadow:0 20px 50px -20px rgba(0,0,0,.7);}
+  .loading-label{font-size:13.5px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:10px;}
+  .loading-ring{width:18px;height:18px;border:2.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+  .loading-track{width:100%;height:6px;background:var(--panel2);border-radius:10px;overflow:hidden;border:1px solid var(--border-soft);}
+  .loading-bar-fill{height:100%;width:5%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:10px;transition:width 1.1s cubic-bezier(.22,.9,.3,1);}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  code, .mono{font-family:var(--mono);}
+  footer{text-align:center;color:var(--muted2);font-size:12px;margin-top:36px;padding-top:20px;border-top:1px solid var(--border-soft);}
+  footer a{color:var(--muted);text-decoration:none;}
+  .back-link{font-size:12.5px;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:5px;margin-bottom:14px;}
+  .back-link:hover{color:var(--text);}
+
+  /* export format toggle */
+  .format-toggle{display:inline-flex;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:3px;gap:2px;}
+  .format-opt{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s;user-select:none;}
+  .format-opt.active{background:var(--accent);color:#fff;box-shadow:0 2px 8px -2px rgba(91,124,250,.5);}
+  .format-opt:not(.active):hover{color:var(--text);}
+  .format-opt .ext{font-family:var(--mono);font-size:11px;opacity:.8;}
+
+  /* preview table */
+  .preview-wrap{border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:14px;background:var(--bg);}
+  .preview-scroll{overflow-x:auto;max-height:320px;overflow-y:auto;}
+  .preview-table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap;}
+  .preview-table th{position:sticky;top:0;background:var(--panel2);color:var(--muted);text-align:left;padding:9px 12px;font-weight:600;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+  .preview-table td{padding:8px 12px;border-bottom:1px solid var(--border-soft);color:var(--text);font-family:var(--mono);font-size:12px;}
+  .preview-table tr:last-child td{border-bottom:none;}
+  .preview-table tr:hover td{background:rgba(255,255,255,.02);}
+  .preview-foot{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;background:var(--panel2);border-top:1px solid var(--border);font-size:11.5px;color:var(--muted);flex-wrap:wrap;gap:8px;}
+  .preview-foot select{width:auto;padding:5px 8px;font-size:11.5px;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+/* ============================================================
+   DATA COMPARISON TOOL
+   Fully client-side. Nothing is ever uploaded to a server.
+   ============================================================ */
+
+const state = {
+  mode: null,        // 'compare' | 'split'
+  loading: null,
+  compare: {
+    step: 1, comparisonType: null,
+    fileA: null, fileB: null,
+    mapA: {}, mapB: {},
+    filters: {}, groupByField: null, chunkSize: 2000,
+    leftover: null, layers: null, exportFormat: 'xlsx', previewLayerIdx: 0,
+  },
+  split: {
+    step: 1, datasetType: null, // 'master' | 'surveyed' | 'installed'
+    primary: null, secondary: null,
+    mapP: {}, mapS: {},
+    statusEnabled: false,
+    filters: {}, groupByField: null, chunkSize: 2000,
+    tagged: null, layers: null, exportFormat: 'xlsx', previewLayerIdx: 0,
+  }
+};
+
+const COMPARE_LABELS = {
+  not_surveyed: { a: 'Master Data', b: 'Surveyed Data', out: 'Not Surveyed' },
+  not_installed: { a: 'Surveyed Data', b: 'Installed Data', out: 'Not Installed' },
+};
+
+const DATASET_TYPES = {
+  master:   { label:'Master Data',   icon:'▤', desc:'Utility-provided consumer list',
+              keyCands:['ACCNO','ACCOUNTNO','ACCOUNT NO'], latCands:['LATTITUDE','LATITUDE'], lngCands:['LONGITUDE'], nameCands:['ACCNO'],
+              statusFrom:'surveyed', statusLabel:'Survey Status', statusPos:'Surveyed', statusNeg:'Not Surveyed' },
+  surveyed: { label:'Surveyed Data', icon:'◎', desc:'Field survey exports',
+              keyCands:['ACCOUNT NO','ACCOUNTNO'], latCands:['METER LATITUDE','LATITUDE'], lngCands:['METER LONGITUDE','LONGITUDE'], nameCands:['NAME'],
+              statusFrom:'installed', statusLabel:'Installation Status', statusPos:'Installed', statusNeg:'Not Installed' },
+  installed:{ label:'Installed Data',icon:'✓', desc:'NIC installation exports',
+              keyCands:['ACCOUNT NO','ACCOUNTNO'], latCands:['NIC LATITUDE','LATITUDE'], lngCands:['NIC LONGITUDE','LONGITUDE'], nameCands:['NAME'],
+              statusFrom:null, statusLabel:null, statusPos:null, statusNeg:null },
+};
+
+function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
+function $(sel,root=document){ return root.querySelector(sel); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+function fmtBytes(n){ if(n<1024) return n+' B'; if(n<1024*1024) return (n/1024).toFixed(1)+' KB'; return (n/1024/1024).toFixed(1)+' MB'; }
+
+function normKey(v){
+  if(v===undefined||v===null) return '';
+  let s = String(v).trim().toUpperCase();
+  s = s.replace(/[\s\-_.]/g,'');
+  s = s.replace(/^0+(?=\d)/,'');
+  return s;
+}
+
+function guessColumn(headers, candidates){
+  const lower = headers.map(h=>h.toLowerCase().replace(/[^a-z0-9]/g,''));
+  for(const c of candidates){
+    const cn = c.toLowerCase().replace(/[^a-z0-9]/g,'');
+    const idx = lower.indexOf(cn);
+    if(idx>-1) return headers[idx];
+  }
+  for(const c of candidates){
+    const cn = c.toLowerCase().replace(/[^a-z0-9]/g,'');
+    const idx = lower.findIndex(h=>h.includes(cn));
+    if(idx>-1) return headers[idx];
+  }
+  return '';
+}
+
+function parseFile(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      try{
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array', cellDates:false, cellText:true});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet, {defval:'', raw:false});
+        if(json.length===0){ reject(new Error('No rows found in '+file.name)); return; }
+        const headers = Object.keys(json[0]);
+        resolve({ name:file.name, size:file.size, headers, rows: json });
+      }catch(err){ reject(err); }
+    };
+    reader.onerror = ()=>reject(new Error('Could not read the file.'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/* ---------------- loading overlay (real staged + animated bar) ---------------- */
+
+function showLoading(label){
+  state.loading = label;
+  render();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const bar = $('#loading-bar-fill');
+    if(bar) bar.style.width = '82%';
+  }));
+}
+async function hideLoading(){
+  const bar = $('#loading-bar-fill');
+  if(bar) bar.style.width = '100%';
+  await new Promise(r=>setTimeout(r, 280));
+  state.loading = null;
+  render();
+}
+
+/* ---------------- ROOT RENDER ---------------- */
+
+function render(){
+  const app = $('#app');
+  app.innerHTML = '';
+  app.appendChild(renderHeader());
+
+  if(!state.mode) app.appendChild(renderLanding());
+  else if(state.mode==='compare') app.appendChild(renderCompareFlow());
+  else if(state.mode==='split') app.appendChild(renderSplitFlow());
+
+  app.appendChild(renderFooter());
+
+  if(state.loading){
+    app.appendChild(el(`
+      <div class="loading-overlay">
+        <div class="loading-box">
+          <div class="loading-label"><span class="loading-ring"></span> ${escapeHtml(state.loading)}</div>
+          <div class="loading-track"><div class="loading-bar-fill" id="loading-bar-fill"></div></div>
+        </div>
+      </div>
+    `));
+  }
+}
+
+function renderHeader(){
+  const modeLabel = state.mode==='compare' ? 'Compare Datasets' : state.mode==='split' ? 'Split & Plot' : null;
+  return el(`
+    <div>
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-mark">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 8.5 12 15l10-6.5L12 2z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M2 15.5L12 22l10-6.5M2 12L12 18.5 22 12" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          </div>
+          <div>
+            <h1>Data Comparison Tool</h1>
+            <div class="tag">Master · Survey · Installation data reconciliation</div>
+          </div>
+        </div>
+        ${modeLabel ? `<div class="mode-badge" id="switch-mode">↺ Change mode</div>` : ''}
+      </div>
+    </div>
+  `);
+}
+
+function renderFooter(){
+  return el(`<footer>Data Comparison Tool · built by Subradeep · runs locally, nothing leaves your browser</footer>`);
+}
+
+document.addEventListener('click', (e)=>{
+  if(e.target && e.target.id==='switch-mode'){
+    state.mode = null;
+    render();
+  }
+});
+
+/* ---------------- LANDING ---------------- */
+
+function renderLanding(){
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(el(`
+    <div class="mode-grid" style="margin-top:26px;">
+      <div class="mode-card" id="pick-mode-compare">
+        <span class="icon">⇄</span>
+        <h3>Compare two datasets</h3>
+        <p>Find leftover consumers by comparing Master vs Surveyed, or Surveyed vs Installed.</p>
+        <ul>
+          <li>Not-surveyed consumer lists</li>
+          <li>Not-installed consumer lists</li>
+          <li>Auto-filtered, region-grouped map layers</li>
+        </ul>
+      </div>
+      <div class="mode-card" id="pick-mode-split">
+        <span class="icon">⊞</span>
+        <h3>Split &amp; plot one dataset</h3>
+        <p>Skip the comparison, just chunk a single file (Master, Surveyed, or Installed) into map-ready layers.</p>
+        <ul>
+          <li>Plot installed points only</li>
+          <li>Optionally auto-tag Installed / Not Installed status</li>
+          <li>Split by region, phase, meter type, date, or row count</li>
+        </ul>
+      </div>
+    </div>
+  `));
+  wrap.querySelector('#pick-mode-compare').onclick = ()=>{ state.mode='compare'; render(); };
+  wrap.querySelector('#pick-mode-split').onclick = ()=>{ state.mode='split'; render(); };
+  return wrap;
+}
+
+/* ---------------- shared: stepper ---------------- */
+
+function renderStepper(names, currentStep){
+  const bar = el(`<div class="steps"></div>`);
+  names.forEach((n,i)=>{
+    const num=i+1;
+    const cls = num===currentStep ? 'active' : (num<currentStep?'done':'');
+    const item = el(`<div class="step-item ${cls}"><div class="step-dot">${num<currentStep?'✓':num}</div><div class="step-label">${n}</div></div>`);
+    bar.appendChild(item);
+    if(i<names.length-1) bar.appendChild(el(`<div class="step-line ${num<currentStep?'done':''}"></div>`));
+  });
+  return bar;
+}
+
+/* ---------------- shared: dropzone ---------------- */
+
+function fileDropzone(id, label, fileObj, opts={}){
+  const optionalTag = opts.optional ? `<span class="optional-tag">optional</span>` : '';
+  return `
+    <div class="dropzone ${fileObj?'filled':''}" id="dz-${id}">
+      ${fileObj ? `<button class="dz-remove" data-remove="${id}">× Remove</button>` : ''}
+      <div class="dz-icon">${fileObj?'✓':'+'}</div>
+      <div class="dz-title">${label} ${optionalTag}</div>
+      <div class="dz-info">${fileObj ? `<b>${escapeHtml(fileObj.name)}</b><br>${fileObj.rows.length.toLocaleString()} rows · ${fmtBytes(fileObj.size)}` : (opts.hint || 'Click to upload .xlsx / .csv')}</div>
+      <input type="file" id="input-${id}" accept=".xlsx,.xls,.csv">
+    </div>`;
+}
+
+function wireDropzone(wrap, id, onFile, onRemove){
+  const dz = wrap.querySelector('#dz-'+id);
+  if(!dz) return;
+  const input = wrap.querySelector('#input-'+id);
+  dz.onclick = (e)=>{ if(e.target.dataset && e.target.dataset.remove) return; input.click(); };
+  input.onchange = async (e)=>{ if(e.target.files[0]) await onFile(e.target.files[0]); };
+  const removeBtn = wrap.querySelector('[data-remove="'+id+'"]');
+  if(removeBtn) removeBtn.onclick = (e)=>{ e.stopPropagation(); onRemove(); };
+}
+
+/* ---------------- export helpers (shared) ---------------- */
+
+// Build a real .xlsx file (not CSV) so ID columns keep their exact digits.
+// Excel and Google My Maps both read the actual cell type instead of us
+// having to fight CSV's "looks like a number" guessing.
+function buildXlsxBytes(headers, aoaRows){
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...aoaRows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  return XLSX.write(wb, {bookType:'xlsx', type:'array'});
+}
+
+// CSV path: long all-digit values (account no, meter no, mobile no, etc.)
+// get wrapped as ="1234567890" — Excel treats a cell starting with = as a
+// formula, so it displays the digits exactly as typed instead of rounding
+// them into scientific notation (1.0011E+11). Google My Maps' CSV importer
+// reads straight past the formula wrapper and just uses the text value.
+const CSV_LONG_NUMERIC = /^\d{5,}$/;
+function csvCell(v){
+  if(v===undefined||v===null) v='';
+  v = String(v);
+  if(/[",\r\n]/.test(v)) v = '"'+v.replace(/"/g,'""')+'"';
+  return v;
+}
+function buildCsvString(headers, aoaRows, rawColIndexes=[]){
+  const rawSet = new Set(rawColIndexes);
+  const lines = [headers.map(csvCell).join(',')];
+  aoaRows.forEach(row=>{
+    const cells = row.map((v,i)=>{
+      if(rawSet.has(i)) return csvCell(v); // lat/lng stay plain decimals
+      const s = (v===undefined||v===null) ? '' : String(v).trim();
+      return CSV_LONG_NUMERIC.test(s) ? csvCell(`="${s}"`) : csvCell(v);
+    });
+    lines.push(cells.join(','));
+  });
+  // Leading UTF-8 BOM: without it, Excel on Windows guesses the system codepage
+  // instead of UTF-8, and consumer names in Bengali/Assamese/other regional
+  // scripts render as garbled boxes. The BOM forces Excel to read it correctly.
+  return '\uFEFF' + lines.join('\r\n');
+}
+
+// Single entry point both flows use to turn {headers, aoa} into a downloadable
+// file, honoring the user's chosen format. rawCols = indexes that must stay
+// plain numbers (Latitude/Longitude) even in CSV mode.
+function buildExportFile(headers, aoa, format, rawCols=[]){
+  if(format==='csv'){
+    return { bytes: buildCsvString(headers, aoa, rawCols), mime:'text/csv;charset=utf-8', ext:'csv' };
+  }
+  return { bytes: buildXlsxBytes(headers, aoa), mime:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext:'xlsx' };
+}
+
+function triggerDownload(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
+
+/* ---------------- export format toggle + on-screen preview (shared) ---------------- */
+
+function renderFormatToggle(current, onChange){
+  const wrap = el(`
+    <div class="format-toggle" id="format-toggle">
+      <div class="format-opt ${current==='xlsx'?'active':''}" data-fmt="xlsx">Excel <span class="ext">.xlsx</span></div>
+      <div class="format-opt ${current==='csv'?'active':''}" data-fmt="csv">CSV <span class="ext">.csv</span></div>
+    </div>
+  `);
+  wrap.querySelectorAll('[data-fmt]').forEach(opt=>{
+    opt.onclick = ()=> onChange(opt.dataset.fmt);
+  });
+  return wrap;
+}
+
+// Shows the first ~8 rows of a chosen layer so the user can sanity-check the
+// data before downloading anything. Values shown here are the clean logical
+// values — the ="..." CSV trick is a file-encoding detail, not something
+// that should show up on screen.
+function renderPreview(layers, rowsToAoa, previewIdx, onLayerChange){
+  if(!layers.length) return el(`<div></div>`);
+  const idx = Math.min(previewIdx, layers.length-1);
+  const layer = layers[idx];
+  const {headers, aoa} = rowsToAoa(layer.rows.slice(0, 8));
+  const wrap = el(`
+    <div class="preview-wrap">
+      <div class="preview-scroll">
+        <table class="preview-table">
+          <thead><tr>${headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+          <tbody>${aoa.map(row=>`<tr>${row.map(v=>`<td>${escapeHtml(v===undefined||v===null?'':v)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <div class="preview-foot">
+        <span>Showing ${Math.min(8,layer.rows.length)} of ${layer.rows.length.toLocaleString()} rows in this file</span>
+        ${layers.length>1 ? `<select id="preview-layer-sel">${layers.map((l,i)=>`<option value="${i}" ${i===idx?'selected':''}>${escapeHtml(l.filenameBase||l.filename)} (${l.rows.length})</option>`).join('')}</select>` : ''}
+      </div>
+    </div>
+  `);
+  const sel = wrap.querySelector('#preview-layer-sel');
+  if(sel) sel.onchange = e=> onLayerChange(parseInt(e.target.value));
+  return wrap;
+}
+
+/* ============================================================
+   COMPARE MODE
+   ============================================================ */
+
+function renderCompareFlow(){
+  const c = state.compare;
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(renderStepper(['Choose & Upload','Map Columns','Filters & Grouping','Results & Export'], c.step));
+  if(c.step===1) wrap.appendChild(cmpStep1());
+  if(c.step===2) wrap.appendChild(cmpStep2());
+  if(c.step===3) wrap.appendChild(cmpStep3());
+  if(c.step===4) wrap.appendChild(cmpStep4());
+  return wrap;
+}
+
+function cmpStep1(){
+  const c = state.compare;
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(el(`
+    <div class="card">
+      <h2>Step 1: What are you comparing?</h2>
+      <div class="sub">Pick which leftover list you want to generate.</div>
+      <div class="grid3">
+        <div class="dropzone ${c.comparisonType==='not_surveyed'?'filled':''}" id="pick-ns">
+          <div class="dz-icon">⊘</div>
+          <div class="dz-title">Not Surveyed</div>
+          <div class="dz-info">Master Data minus Surveyed Data</div>
+        </div>
+        <div class="dropzone ${c.comparisonType==='not_installed'?'filled':''}" id="pick-ni">
+          <div class="dz-icon">◐</div>
+          <div class="dz-title">Not Installed</div>
+          <div class="dz-info">Surveyed Data minus Installed Data</div>
+        </div>
+      </div>
+    </div>
+  `));
+
+  const labels = c.comparisonType ? COMPARE_LABELS[c.comparisonType] : null;
+  const uploadCard = el(`<div class="card" style="${c.comparisonType?'':'opacity:.4;pointer-events:none;'}">
+      <h2>Step 1b: Upload the two files</h2>
+      <div class="sub">${labels ? `Comparing <b>${labels.a}</b> against <b>${labels.b}</b> to find leftovers.` : 'Choose a comparison type above first.'}</div>
+      <div class="grid3">
+        <div>${fileDropzone('cmp-a', labels?labels.a:'File A', c.fileA)}</div>
+        <div>${fileDropzone('cmp-b', labels?labels.b:'File B', c.fileB)}</div>
+      </div>
+      <div id="upload-err"></div>
+      <div class="actions">
+        <button class="btn" id="to-step2" ${(c.fileA&&c.fileB)?'':'disabled'}>Next: Map Columns →</button>
+      </div>
+    </div>`);
+  wrap.appendChild(uploadCard);
+
+  wrap.querySelector('#pick-ns').onclick = ()=>{ if(c.comparisonType!=='not_surveyed'){ c.comparisonType='not_surveyed'; cmpResetFiles(); } render(); };
+  wrap.querySelector('#pick-ni').onclick = ()=>{ if(c.comparisonType!=='not_installed'){ c.comparisonType='not_installed'; cmpResetFiles(); } render(); };
+
+  wireDropzone(wrap, 'cmp-a', async (file)=>{
+    showLoading(`Reading ${file.name}...`);
+    try{ c.fileA = await parseFile(file); cmpResetDownstream(); }
+    catch(err){ await hideLoading(); $('#upload-err').innerHTML = `<div class="err">Failed to read ${escapeHtml(file.name)}: ${escapeHtml(err.message)}</div>`; return; }
+    await hideLoading();
+  }, ()=>{ c.fileA=null; cmpResetDownstream(); render(); });
+
+  wireDropzone(wrap, 'cmp-b', async (file)=>{
+    showLoading(`Reading ${file.name}...`);
+    try{ c.fileB = await parseFile(file); cmpResetDownstream(); }
+    catch(err){ await hideLoading(); $('#upload-err').innerHTML = `<div class="err">Failed to read ${escapeHtml(file.name)}: ${escapeHtml(err.message)}</div>`; return; }
+    await hideLoading();
+  }, ()=>{ c.fileB=null; cmpResetDownstream(); render(); });
+
+  const nextBtn = wrap.querySelector('#to-step2');
+  if(nextBtn) nextBtn.onclick = ()=>{ cmpAutoMap(); c.step=2; render(); };
+  return wrap;
+}
+
+function cmpResetFiles(){ state.compare.fileA=null; state.compare.fileB=null; cmpResetDownstream(); }
+function cmpResetDownstream(){ const c=state.compare; c.mapA={}; c.mapB={}; c.filters={}; c.groupByField=null; c.leftover=null; c.layers=null; }
+
+function cmpAutoMap(){
+  const c = state.compare;
+  const isNS = c.comparisonType==='not_surveyed';
+  if(!c.mapA.key) c.mapA.key = guessColumn(c.fileA.headers, isNS?['ACCNO','ACCOUNTNO','ACCOUNT NO']:['ACCOUNT NO','ACCOUNTNO','ACCNO']);
+  if(!c.mapB.key) c.mapB.key = guessColumn(c.fileB.headers, ['ACCOUNT NO','ACCOUNTNO','ACCNO']);
+  if(!c.mapA.lat) c.mapA.lat = guessColumn(c.fileA.headers, isNS?['LATTITUDE','LATITUDE']:['METER LATITUDE','LATITUDE']);
+  if(!c.mapA.lng) c.mapA.lng = guessColumn(c.fileA.headers, isNS?['LONGITUDE']:['METER LONGITUDE','LONGITUDE']);
+  if(!c.mapA.name) c.mapA.name = guessColumn(c.fileA.headers, isNS?['ACCNO']:['NAME']);
+}
+
+function optionsFor(headers, selected, allowNone=false){
+  let out = allowNone ? `<option value="">-- select a column --</option>` : '';
+  headers.forEach(h=>{ out += `<option value="${escapeAttr(h)}" ${h===selected?'selected':''}>${escapeHtml(h)}</option>`; });
+  return out;
+}
+
+function cmpStep2(){
+  const c = state.compare;
+  const labels = COMPARE_LABELS[c.comparisonType];
+  const wrap = el(`<div></div>`);
+  const keyAMissing=!c.mapA.key, keyBMissing=!c.mapB.key, latMissing=!c.mapA.lat, lngMissing=!c.mapA.lng;
+  const canProceed = !keyAMissing && !keyBMissing && !latMissing && !lngMissing;
+
+  wrap.appendChild(el(`
+    <div class="card">
+      <h2>Step 2: Confirm the join key and coordinate columns</h2>
+      <div class="sub">Auto-detected where possible, override anything that's wrong. Fields marked * are required.</div>
+      <div class="row">
+        <div><label class="req">${labels.a}: Key column</label><select id="sel-a-key" class="${keyAMissing?'invalid':''}">${optionsFor(c.fileA.headers,c.mapA.key,true)}</select></div>
+        <div><label class="req">${labels.b}: Key column</label><select id="sel-b-key" class="${keyBMissing?'invalid':''}">${optionsFor(c.fileB.headers,c.mapB.key,true)}</select></div>
+      </div>
+      <div class="row">
+        <div><label class="req">${labels.a}: Latitude column</label><select id="sel-a-lat" class="${latMissing?'invalid':''}">${optionsFor(c.fileA.headers,c.mapA.lat,true)}</select></div>
+        <div><label class="req">${labels.a}: Longitude column</label><select id="sel-a-lng" class="${lngMissing?'invalid':''}">${optionsFor(c.fileA.headers,c.mapA.lng,true)}</select></div>
+        <div><label>${labels.a}: Label column (pin name)</label><select id="sel-a-name">${optionsFor(c.fileA.headers,c.mapA.name,true)}</select></div>
+      </div>
+      ${!canProceed ? `<div class="err">Please select all required (*) fields before continuing.</div>` : ''}
+      <div class="note">Coordinates come from <b>${labels.a}</b>. Rows with missing coordinates still appear in the leftover list, flagged separately as "no coordinates" rather than dropped.</div>
+      <div class="actions">
+        <button class="btn secondary" id="back1">← Back</button>
+        <button class="btn" id="to-step3" ${canProceed?'':'disabled'}>Next: Filters & Grouping →</button>
+      </div>
+    </div>
+  `));
+
+  wrap.querySelector('#sel-a-key').onchange = e=>{ c.mapA.key=e.target.value; render(); };
+  wrap.querySelector('#sel-b-key').onchange = e=>{ c.mapB.key=e.target.value; render(); };
+  wrap.querySelector('#sel-a-lat').onchange = e=>{ c.mapA.lat=e.target.value; render(); };
+  wrap.querySelector('#sel-a-lng').onchange = e=>{ c.mapA.lng=e.target.value; render(); };
+  wrap.querySelector('#sel-a-name').onchange = e=>c.mapA.name=e.target.value;
+  wrap.querySelector('#back1').onclick = ()=>{ c.step=1; render(); };
+  const nextBtn = wrap.querySelector('#to-step3');
+  if(canProceed) nextBtn.onclick = async ()=>{
+    showLoading('Comparing datasets...');
+    await new Promise(r=>setTimeout(r,20));
+    cmpComputeLeftover();
+    await hideLoading();
+    c.step=3; render();
+  };
+  return wrap;
+}
+
+function cmpComputeLeftover(){
+  const c = state.compare;
+  const bKeySet = new Set(c.fileB.rows.map(r=>normKey(r[c.mapB.key])).filter(k=>k!==''));
+  c.leftover = c.fileA.rows.filter(r=>{
+    const k = normKey(r[c.mapA.key]);
+    if(k==='') return false;
+    return !bKeySet.has(k);
+  });
+}
+
+function detectGroupableFields(headers){
+  const candidates = ['SUB DIVISION','SUBDIVISION','SUB-DIVISION','DIVISION','CIRCLE','PHASE','TARIFF_DESC','CONSUMERSTATUS','METER TYPE','UPDATED METER TYPE','AREACODE'];
+  return candidates.map(c=>guessColumn(headers,[c])).filter((v,i,a)=>v && a.indexOf(v)===i);
+}
+
+function fieldLabel(f){ return f==='__status' ? 'Status' : f; }
+
+function renderFilterGroupCard(opts){
+  // opts: { rows, headers, groupByField, onGroupByChange, chunkSize, onChunkChange, filters, extraGroupable, statusField }
+  const groupable = detectGroupableFields(opts.headers).concat(opts.statusField?[opts.statusField]:[]);
+  const filterFields = groupable.filter(f=>f!==opts.groupByField);
+  const card = el(`
+    <div class="card">
+      <h2>${opts.title}</h2>
+      <div class="sub">${opts.rows.length.toLocaleString()} rows before filtering.</div>
+      <div class="row">
+        <div>
+          <label>Group layers by ${opts.statusField?'(try Status, or Sub-Division)':'(recommended: Sub-Division/ESD)'}</label>
+          <select id="sel-groupby">
+            <option value="">-- no grouping, split every N rows --</option>
+            ${groupable.map(g=>`<option value="${escapeAttr(g)}" ${g===opts.groupByField?'selected':''}>${escapeHtml(fieldLabel(g))}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Max rows per exported layer (Google My Maps limit is 2000)</label>
+          <input type="number" id="chunk-size" min="1" max="2000" value="${opts.chunkSize}">
+          <div class="helptext" id="chunk-help"></div>
+        </div>
+      </div>
+      <div id="filter-area"></div>
+    </div>
+  `);
+
+  card.querySelector('#sel-groupby').onchange = e=>{
+    const newField = e.target.value;
+    if(newField) delete opts.filters[newField];
+    opts.onGroupByChange(newField);
+  };
+  const chunkInput = card.querySelector('#chunk-size');
+  chunkInput.oninput = e=>{
+    let v = parseInt(e.target.value);
+    const help = card.querySelector('#chunk-help');
+    if(isNaN(v)||v<1){ help.textContent='Enter a number between 1 and 2000.'; help.style.color='var(--danger)'; return; }
+    if(v>2000){ v=2000; e.target.value=2000; help.textContent='Capped at 2000 (Google My Maps per-layer limit).'; help.style.color='var(--warn)'; }
+    else help.textContent='';
+    opts.onChunkChange(v);
+  };
+
+  const filterArea = card.querySelector('#filter-area');
+  filterFields.forEach(field=>{
+    const values = [...new Set(opts.rows.map(r=>String(r[field]??'').trim()).filter(v=>v!==''))].sort();
+    if(values.length===0 || values.length>60) return;
+    if(!opts.filters[field]) opts.filters[field] = new Set(values);
+    const selectedSet = opts.filters[field];
+    const box = el(`
+      <div style="margin-top:14px;">
+        <div class="filter-head">
+          <label style="margin-bottom:0;">Filter: ${escapeHtml(fieldLabel(field))} <span class="pill">${selectedSet.size}/${values.length} selected</span></label>
+          <div><button class="btn tiny ghost" data-act="all">Select all</button> <button class="btn tiny ghost" data-act="none">Clear all</button></div>
+        </div>
+        <div class="chk-list">
+          ${values.map(v=>`<label class="chk-item"><input type="checkbox" value="${escapeAttr(v)}" ${selectedSet.has(v)?'checked':''}> ${escapeHtml(v)}</label>`).join('')}
+        </div>
+      </div>
+    `);
+    box.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+      cb.onchange = ()=>{ if(cb.checked) selectedSet.add(cb.value); else selectedSet.delete(cb.value); opts.onRerender(); };
+    });
+    box.querySelectorAll('button[data-act]').forEach(btn=>{
+      btn.onclick = ()=>{ if(btn.dataset.act==='all') values.forEach(v=>selectedSet.add(v)); else selectedSet.clear(); opts.onRerender(); };
+    });
+    filterArea.appendChild(box);
+  });
+
+  return card;
+}
+
+function cmpStep3(){
+  const c = state.compare;
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(renderFilterGroupCard({
+    title: 'Step 3: Filters and how to split the map layers',
+    rows: c.leftover, headers: c.fileA.headers,
+    groupByField: c.groupByField, chunkSize: c.chunkSize, filters: c.filters,
+    onGroupByChange: (f)=>{ c.groupByField=f; render(); },
+    onChunkChange: (v)=>{ c.chunkSize=v; },
+    onRerender: render,
+  }));
+  wrap.appendChild(el(`
+    <div class="actions">
+      <button class="btn secondary" id="back2">← Back</button>
+      <button class="btn" id="to-step4">Next: Generate Layers →</button>
+    </div>
+  `));
+  wrap.querySelector('#back2').onclick = ()=>{ c.step=2; render(); };
+  wrap.querySelector('#to-step4').onclick = async ()=>{
+    showLoading('Building map layers...');
+    await new Promise(r=>setTimeout(r,20));
+    cmpBuildLayers();
+    await hideLoading();
+    c.step=4; render();
+  };
+  return wrap;
+}
+
+function applyFilters(rows, filters, groupByField){
+  return rows.filter(r=>{
+    for(const field in filters){
+      if(field===groupByField) continue;
+      const set = filters[field];
+      const val = String(r[field]??'').trim();
+      if(val==='') continue;
+      if(!set.has(val)) return false;
+    }
+    return true;
+  });
+}
+
+function cmpBuildLayers(){
+  const c = state.compare;
+  const filtered = applyFilters(c.leftover, c.filters, c.groupByField);
+  const withCoords = [], noCoords = [];
+  filtered.forEach(r=>{
+    const lat=parseFloat(r[c.mapA.lat]), lng=parseFloat(r[c.mapA.lng]);
+    (!isNaN(lat)&&!isNaN(lng)&&lat!==0&&lng!==0 ? withCoords : noCoords).push(r);
+  });
+  const layers = chunkIntoLayers(withCoords, c.groupByField, c.chunkSize, COMPARE_LABELS[c.comparisonType].out);
+  c.layers = { layers, noCoords, totalFiltered: filtered.length, totalWithCoords: withCoords.length };
+}
+
+function chunkIntoLayers(rows, groupByField, chunkSize, prefix){
+  let groups = {};
+  if(groupByField){
+    rows.forEach(r=>{ const g=String(r[groupByField]??'Unspecified').trim()||'Unspecified'; (groups[g]=groups[g]||[]).push(r); });
+  } else groups['All'] = rows;
+  const cs = chunkSize>0?chunkSize:2000;
+  const layers = [];
+  Object.keys(groups).sort().forEach(gname=>{
+    const grows = groups[gname];
+    const chunks=[]; for(let i=0;i<grows.length;i+=cs) chunks.push(grows.slice(i,i+cs));
+    chunks.forEach((chunk,idx)=>{
+      const safeName = gname.replace(/[^a-z0-9]+/gi,'_').slice(0,40);
+      const filenameBase = `${prefix}_${safeName}${chunks.length>1?'_Layer'+(idx+1):''}`;
+      layers.push({ group:gname, filenameBase, rows:chunk });
+    });
+  });
+  return layers;
+}
+
+function cmpStep4(){
+  const c = state.compare;
+  const L = c.layers;
+  const labels = COMPARE_LABELS[c.comparisonType];
+  const ext = c.exportFormat;
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(el(`
+    <div class="card">
+      <h2>Step 4: Results</h2>
+      <div class="stat-grid">
+        <div class="stat"><div class="num">${c.fileA.rows.length.toLocaleString()}</div><div class="lbl">${labels.a} total rows</div></div>
+        <div class="stat"><div class="num">${c.fileB.rows.length.toLocaleString()}</div><div class="lbl">${labels.b} total rows</div></div>
+        <div class="stat warn"><div class="num">${c.leftover.length.toLocaleString()}</div><div class="lbl">${labels.out} (before filters)</div></div>
+        <div class="stat bad"><div class="num">${L.totalFiltered.toLocaleString()}</div><div class="lbl">${labels.out} after filters</div></div>
+        <div class="stat good"><div class="num">${L.totalWithCoords.toLocaleString()}</div><div class="lbl">Plottable (has coordinates)</div></div>
+        <div class="stat"><div class="num">${L.noCoords.length.toLocaleString()}</div><div class="lbl">Missing coordinates</div></div>
+      </div>
+      ${L.noCoords.length>0?`<div class="note">${L.noCoords.length} rows matched the filters but have no valid latitude/longitude. Download the separate report below to follow up.</div>`:''}
+
+      <div class="row" style="margin-top:18px;align-items:end;">
+        <div>
+          <label>Export format</label>
+          <div id="format-toggle-slot"></div>
+        </div>
+      </div>
+      ${ext==='xlsx'
+        ? `<div class="good-note">Exporting as .xlsx, so long ID numbers like Account No or Meter No keep their exact digits (e.g. <code>100110302456</code>, not <code>1.0011E+11</code>) whether you open the file in Excel or import it straight into Google My Maps.</div>`
+        : `<div class="good-note">Exporting as .csv — long ID numbers are wrapped as <code>="100110302456"</code>, a formula trick that forces Excel and My Maps to keep the exact digits instead of converting them to scientific notation.</div>`
+      }
+
+      <h2 style="margin-top:22px;">Preview</h2>
+      <div class="sub">A quick look at what's about to be exported, before you download anything.</div>
+      <div id="preview-slot"></div>
+
+      <h2 style="margin-top:22px;">Map layers ready for Google My Maps (${L.layers.length} file${L.layers.length!==1?'s':''})</h2>
+      <div class="sub">Each file is ≤ ${c.chunkSize} rows. In My Maps: "Add layer" → "Import" → select each file → set Latitude/Longitude as position columns.</div>
+      <div class="layer-list">${L.layers.map(l=>`<div class="layer-row"><span class="fname">▸ ${escapeHtml(l.filenameBase)}.${ext}</span><span class="pill">${l.rows.length} rows</span></div>`).join('')}</div>
+      <div class="actions">
+        <button class="btn secondary" id="back3">← Back to Filters</button>
+        <button class="btn" id="download-zip">↓ Download all layers (.zip)</button>
+        ${L.noCoords.length>0 ? `<button class="btn ghost" id="download-nocoords">↓ Download "no coordinates" report</button>`:''}
+      </div>
+      <div id="dl-status" style="margin-top:10px;font-size:13px;color:var(--muted);"></div>
+    </div>
+  `));
+
+  wrap.querySelector('#format-toggle-slot').appendChild(renderFormatToggle(c.exportFormat, (fmt)=>{ c.exportFormat=fmt; render(); }));
+  wrap.querySelector('#preview-slot').appendChild(renderPreview(L.layers, cmpToMyMapsRows, c.previewLayerIdx, (i)=>{ c.previewLayerIdx=i; render(); }));
+
+  wrap.querySelector('#back3').onclick = ()=>{ c.step=3; render(); };
+  wrap.querySelector('#download-zip').onclick = cmpDownloadZip;
+  const ncBtn = wrap.querySelector('#download-nocoords');
+  if(ncBtn) ncBtn.onclick = cmpDownloadNoCoords;
+  return wrap;
+}
+
+function cmpToMyMapsRows(rows){
+  const c = state.compare;
+  const otherHeaders = c.fileA.headers.filter(h=>h!==c.mapA.lat && h!==c.mapA.lng && h!==c.mapA.name);
+  const headers = ['Name','Latitude','Longitude', ...otherHeaders];
+  const aoa = rows.map(r=>{
+    const name = c.mapA.name ? r[c.mapA.name] : r[c.mapA.key];
+    const lat = parseFloat(r[c.mapA.lat]), lng = parseFloat(r[c.mapA.lng]);
+    return [name, isNaN(lat)?r[c.mapA.lat]:lat, isNaN(lng)?r[c.mapA.lng]:lng, ...otherHeaders.map(h=>r[h])];
+  });
+  return {headers, aoa};
+}
+function cmpToPlainRows(rows, headers){
+  return {headers, aoa: rows.map(r=>headers.map(h=>r[h]))};
+}
+
+async function cmpDownloadZip(){
+  const c = state.compare;
+  const ext = c.exportFormat;
+  const statusEl = $('#dl-status');
+  statusEl.innerHTML = '<span class="loading-ring" style="width:12px;height:12px;"></span> Building files...';
+  await new Promise(r=>setTimeout(r,20));
+  try{
+    const zip = new JSZip();
+    c.layers.layers.forEach(l=>{
+      const {headers, aoa} = cmpToMyMapsRows(l.rows);
+      const file = buildExportFile(headers, aoa, ext, [1,2]); // 1,2 = Latitude, Longitude stay raw
+      zip.file(`${l.filenameBase}.${file.ext}`, file.bytes);
+    });
+    const blob = await zip.generateAsync({type:'blob'});
+    triggerDownload(blob, `${COMPARE_LABELS[c.comparisonType].out}_MapLayers.zip`);
+    statusEl.innerHTML = 'Done ✓';
+  }catch(err){ statusEl.innerHTML = `<span style="color:var(--danger)">Failed: ${escapeHtml(err.message)}</span>`; }
+}
+function cmpDownloadNoCoords(){
+  const c = state.compare;
+  try{
+    const {headers, aoa} = cmpToPlainRows(c.layers.noCoords, c.fileA.headers);
+    const file = buildExportFile(headers, aoa, c.exportFormat);
+    triggerDownload(new Blob([file.bytes],{type:file.mime}), `${COMPARE_LABELS[c.comparisonType].out}_NoCoordinates.${file.ext}`);
+  }catch(err){ $('#dl-status').innerHTML = `<span style="color:var(--danger)">Failed: ${escapeHtml(err.message)}</span>`; }
+}
+
+/* ============================================================
+   SPLIT MODE (no comparison, split and optionally status-tag)
+   ============================================================ */
+
+function renderSplitFlow(){
+  const s = state.split;
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(renderStepper(['Choose & Upload','Map Columns','Filters & Grouping','Results & Export'], s.step));
+  if(s.step===1) wrap.appendChild(splStep1());
+  if(s.step===2) wrap.appendChild(splStep2());
+  if(s.step===3) wrap.appendChild(splStep3());
+  if(s.step===4) wrap.appendChild(splStep4());
+  return wrap;
+}
+
+function splStep1(){
+  const s = state.split;
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(el(`
+    <div class="card">
+      <h2>Step 1: Which dataset are you plotting?</h2>
+      <div class="sub">No comparison here, this just cleans, filters, and chunks one file for Google My Maps.</div>
+      <div class="grid-tri">
+        ${Object.entries(DATASET_TYPES).map(([k,v])=>`
+          <div class="type-card ${s.datasetType===k?'selected':''}" data-type="${k}">
+            <div class="icon">${v.icon}</div>
+            <div class="name">${v.label}</div>
+            <div class="desc">${v.desc}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `));
+  wrap.querySelectorAll('[data-type]').forEach(card=>{
+    card.onclick = ()=>{
+      const k = card.dataset.type;
+      if(s.datasetType!==k){ s.datasetType=k; splResetFiles(); }
+      render();
+    };
+  });
+
+  const dt = s.datasetType ? DATASET_TYPES[s.datasetType] : null;
+  const uploadCard = el(`<div class="card" style="${s.datasetType?'':'opacity:.4;pointer-events:none;'}">
+      <h2>Step 1b: Upload your ${dt?dt.label:'file'}</h2>
+      <div class="sub">${dt && dt.statusFrom ? `Optionally also add the <b>${DATASET_TYPES[dt.statusFrom].label}</b> file, we'll tag every row as "${dt.statusPos}" or "${dt.statusNeg}" so you can filter or color-code the map by status.` : "This is the final stage in the pipeline, so there's nothing to cross-check against."}</div>
+      <div class="grid3">
+        <div>${fileDropzone('spl-p', dt?dt.label:'Primary file', s.primary)}</div>
+        ${dt && dt.statusFrom ? `<div>${fileDropzone('spl-s', DATASET_TYPES[dt.statusFrom].label+' (for status tagging)', s.secondary, {optional:true, hint:'Skip this to plot without a status column'})}</div>` : ''}
+      </div>
+      <div id="upload-err"></div>
+      <div class="actions">
+        <button class="btn" id="to-step2" ${s.primary?'':'disabled'}>Next: Map Columns →</button>
+      </div>
+    </div>`);
+  wrap.appendChild(uploadCard);
+
+  wireDropzone(wrap, 'spl-p', async (file)=>{
+    showLoading(`Reading ${file.name}...`);
+    try{ s.primary = await parseFile(file); splResetDownstream(); }
+    catch(err){ await hideLoading(); $('#upload-err').innerHTML = `<div class="err">Failed to read ${escapeHtml(file.name)}: ${escapeHtml(err.message)}</div>`; return; }
+    await hideLoading();
+  }, ()=>{ s.primary=null; splResetDownstream(); render(); });
+
+  wireDropzone(wrap, 'spl-s', async (file)=>{
+    showLoading(`Reading ${file.name}...`);
+    try{ s.secondary = await parseFile(file); s.mapS={}; s.statusEnabled=true; }
+    catch(err){ await hideLoading(); $('#upload-err').innerHTML = `<div class="err">Failed to read ${escapeHtml(file.name)}: ${escapeHtml(err.message)}</div>`; return; }
+    await hideLoading();
+  }, ()=>{ s.secondary=null; s.mapS={}; s.statusEnabled=false; render(); });
+
+  const nextBtn = wrap.querySelector('#to-step2');
+  if(nextBtn) nextBtn.onclick = ()=>{ splAutoMap(); s.step=2; render(); };
+  return wrap;
+}
+
+function splResetFiles(){ state.split.primary=null; state.split.secondary=null; state.split.statusEnabled=false; splResetDownstream(); }
+function splResetDownstream(){ const s=state.split; s.mapP={}; s.mapS={}; s.filters={}; s.groupByField=null; s.tagged=null; s.layers=null; }
+
+function splAutoMap(){
+  const s = state.split;
+  const dt = DATASET_TYPES[s.datasetType];
+  if(!s.mapP.key) s.mapP.key = guessColumn(s.primary.headers, dt.keyCands);
+  if(!s.mapP.lat) s.mapP.lat = guessColumn(s.primary.headers, dt.latCands);
+  if(!s.mapP.lng) s.mapP.lng = guessColumn(s.primary.headers, dt.lngCands);
+  if(!s.mapP.name) s.mapP.name = guessColumn(s.primary.headers, dt.nameCands);
+  if(s.secondary && !s.mapS.key) s.mapS.key = guessColumn(s.secondary.headers, DATASET_TYPES[dt.statusFrom].keyCands);
+}
+
+function splStep2(){
+  const s = state.split;
+  const dt = DATASET_TYPES[s.datasetType];
+  const wrap = el(`<div></div>`);
+  const latMissing=!s.mapP.lat, lngMissing=!s.mapP.lng;
+  const keyMissing = s.secondary && !s.mapP.key;
+  const secKeyMissing = s.secondary && !s.mapS.key;
+  const canProceed = !latMissing && !lngMissing && !keyMissing && !secKeyMissing;
+
+  wrap.appendChild(el(`
+    <div class="card">
+      <h2>Step 2: Confirm coordinate columns${s.secondary?' and status match key':''}</h2>
+      <div class="sub">Auto-detected where possible, override anything that's wrong.</div>
+      <div class="row">
+        <div><label class="req">${dt.label}: Latitude column</label><select id="sel-lat" class="${latMissing?'invalid':''}">${optionsFor(s.primary.headers,s.mapP.lat,true)}</select></div>
+        <div><label class="req">${dt.label}: Longitude column</label><select id="sel-lng" class="${lngMissing?'invalid':''}">${optionsFor(s.primary.headers,s.mapP.lng,true)}</select></div>
+        <div><label>${dt.label}: Label column (pin name)</label><select id="sel-name">${optionsFor(s.primary.headers,s.mapP.name,true)}</select></div>
+      </div>
+      ${s.secondary ? `
+        <div class="row">
+          <div><label class="req">${dt.label}: Match key (for status tagging)</label><select id="sel-p-key" class="${keyMissing?'invalid':''}">${optionsFor(s.primary.headers,s.mapP.key,true)}</select></div>
+          <div><label class="req">${DATASET_TYPES[dt.statusFrom].label}: Match key</label><select id="sel-s-key" class="${secKeyMissing?'invalid':''}">${optionsFor(s.secondary.headers,s.mapS.key,true)}</select></div>
+        </div>
+        <div class="note">Every ${dt.label} row will be tagged <b>"${dt.statusPos}"</b> if its key is found in the ${DATASET_TYPES[dt.statusFrom].label} file, otherwise <b>"${dt.statusNeg}"</b>. Use this to filter and plot only the ${dt.statusPos.toLowerCase()} points in Step 3.</div>
+      ` : ''}
+      ${!canProceed?`<div class="err">Please select all required (*) fields before continuing.</div>`:''}
+      <div class="actions">
+        <button class="btn secondary" id="back1">← Back</button>
+        <button class="btn" id="to-step3" ${canProceed?'':'disabled'}>Next: Filters & Grouping →</button>
+      </div>
+    </div>
+  `));
+
+  wrap.querySelector('#sel-lat').onchange = e=>{ s.mapP.lat=e.target.value; render(); };
+  wrap.querySelector('#sel-lng').onchange = e=>{ s.mapP.lng=e.target.value; render(); };
+  wrap.querySelector('#sel-name').onchange = e=>s.mapP.name=e.target.value;
+  const pk = wrap.querySelector('#sel-p-key'); if(pk) pk.onchange = e=>{ s.mapP.key=e.target.value; render(); };
+  const sk = wrap.querySelector('#sel-s-key'); if(sk) sk.onchange = e=>{ s.mapS.key=e.target.value; render(); };
+  wrap.querySelector('#back1').onclick = ()=>{ s.step=1; render(); };
+  const nextBtn = wrap.querySelector('#to-step3');
+  if(canProceed) nextBtn.onclick = async ()=>{
+    showLoading(s.secondary?'Tagging status...':'Preparing data...');
+    await new Promise(r=>setTimeout(r,20));
+    splComputeTagged();
+    await hideLoading();
+    s.step=3; render();
+  };
+  return wrap;
+}
+
+function splComputeTagged(){
+  const s = state.split;
+  const dt = DATASET_TYPES[s.datasetType];
+  if(s.secondary){
+    const secSet = new Set(s.secondary.rows.map(r=>normKey(r[s.mapS.key])).filter(k=>k!==''));
+    s.tagged = s.primary.rows.map(r=>{
+      const k = normKey(r[s.mapP.key]);
+      const status = k!=='' && secSet.has(k) ? dt.statusPos : dt.statusNeg;
+      return Object.assign({}, r, { __status: status });
+    });
+  } else {
+    s.tagged = s.primary.rows.slice();
+  }
+}
+
+function splStep3(){
+  const s = state.split;
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(renderFilterGroupCard({
+    title: 'Step 3: Filters and how to split the map layers',
+    rows: s.tagged, headers: s.primary.headers,
+    groupByField: s.groupByField, chunkSize: s.chunkSize, filters: s.filters,
+    statusField: s.secondary ? '__status' : null,
+    onGroupByChange: (f)=>{ s.groupByField=f; render(); },
+    onChunkChange: (v)=>{ s.chunkSize=v; },
+    onRerender: render,
+  }));
+  wrap.appendChild(el(`
+    <div class="actions">
+      <button class="btn secondary" id="back2">← Back</button>
+      <button class="btn" id="to-step4">Next: Generate Layers →</button>
+    </div>
+  `));
+  wrap.querySelector('#back2').onclick = ()=>{ s.step=2; render(); };
+  wrap.querySelector('#to-step4').onclick = async ()=>{
+    showLoading('Building map layers...');
+    await new Promise(r=>setTimeout(r,20));
+    splBuildLayers();
+    await hideLoading();
+    s.step=4; render();
+  };
+  return wrap;
+}
+
+function splBuildLayers(){
+  const s = state.split;
+  const dt = DATASET_TYPES[s.datasetType];
+  const filtered = applyFilters(s.tagged, s.filters, s.groupByField);
+  const withCoords = [], noCoords = [];
+  filtered.forEach(r=>{
+    const lat=parseFloat(r[s.mapP.lat]), lng=parseFloat(r[s.mapP.lng]);
+    (!isNaN(lat)&&!isNaN(lng)&&lat!==0&&lng!==0 ? withCoords : noCoords).push(r);
+  });
+  const layers = chunkIntoLayers(withCoords, s.groupByField, s.chunkSize, dt.label.replace(/\s+/g,''));
+  s.layers = { layers, noCoords, totalFiltered: filtered.length, totalWithCoords: withCoords.length };
+}
+
+function splStep4(){
+  const s = state.split;
+  const L = s.layers;
+  const dt = DATASET_TYPES[s.datasetType];
+  const ext = s.exportFormat;
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(el(`
+    <div class="card">
+      <h2>Step 4: Results</h2>
+      <div class="stat-grid">
+        <div class="stat"><div class="num">${s.primary.rows.length.toLocaleString()}</div><div class="lbl">${dt.label} total rows</div></div>
+        ${s.secondary?`
+          <div class="stat good"><div class="num">${s.tagged.filter(r=>r.__status===dt.statusPos).length.toLocaleString()}</div><div class="lbl">${dt.statusPos}</div></div>
+          <div class="stat warn"><div class="num">${s.tagged.filter(r=>r.__status===dt.statusNeg).length.toLocaleString()}</div><div class="lbl">${dt.statusNeg}</div></div>
+        `:''}
+        <div class="stat bad"><div class="num">${L.totalFiltered.toLocaleString()}</div><div class="lbl">Rows after filters</div></div>
+        <div class="stat good"><div class="num">${L.totalWithCoords.toLocaleString()}</div><div class="lbl">Plottable (has coordinates)</div></div>
+        <div class="stat"><div class="num">${L.noCoords.length.toLocaleString()}</div><div class="lbl">Missing coordinates</div></div>
+      </div>
+      ${L.noCoords.length>0?`<div class="note">${L.noCoords.length} rows matched the filters but have no valid latitude/longitude. Download the separate report below to follow up.</div>`:''}
+
+      <div class="row" style="margin-top:18px;align-items:end;">
+        <div>
+          <label>Export format</label>
+          <div id="format-toggle-slot"></div>
+        </div>
+      </div>
+      ${ext==='xlsx'
+        ? `<div class="good-note">Exporting as .xlsx, so long ID numbers like Account No or Meter No keep their exact digits (e.g. <code>100110302456</code>, not <code>1.0011E+11</code>) whether you open the file in Excel or import it straight into Google My Maps.</div>`
+        : `<div class="good-note">Exporting as .csv — long ID numbers are wrapped as <code>="100110302456"</code>, a formula trick that forces Excel and My Maps to keep the exact digits instead of converting them to scientific notation.</div>`
+      }
+
+      <h2 style="margin-top:22px;">Preview</h2>
+      <div class="sub">A quick look at what's about to be exported, before you download anything.</div>
+      <div id="preview-slot"></div>
+
+      <h2 style="margin-top:22px;">Map layers ready for Google My Maps (${L.layers.length} file${L.layers.length!==1?'s':''})</h2>
+      <div class="sub">Each file is ≤ ${s.chunkSize} rows. In My Maps: "Add layer" → "Import" → select each file → set Latitude/Longitude as position columns.</div>
+      <div class="layer-list">${L.layers.map(l=>`<div class="layer-row"><span class="fname">▸ ${escapeHtml(l.filenameBase)}.${ext}</span><span class="pill">${l.rows.length} rows</span></div>`).join('')}</div>
+      <div class="actions">
+        <button class="btn secondary" id="back3">← Back to Filters</button>
+        <button class="btn" id="download-zip">↓ Download all layers (.zip)</button>
+        ${L.noCoords.length>0?`<button class="btn ghost" id="download-nocoords">↓ Download "no coordinates" report</button>`:''}
+      </div>
+      <div id="dl-status" style="margin-top:10px;font-size:13px;color:var(--muted);"></div>
+    </div>
+  `));
+
+  wrap.querySelector('#format-toggle-slot').appendChild(renderFormatToggle(s.exportFormat, (fmt)=>{ s.exportFormat=fmt; render(); }));
+  wrap.querySelector('#preview-slot').appendChild(renderPreview(L.layers, splToMyMapsRows, s.previewLayerIdx, (i)=>{ s.previewLayerIdx=i; render(); }));
+
+  wrap.querySelector('#back3').onclick = ()=>{ s.step=3; render(); };
+  wrap.querySelector('#download-zip').onclick = splDownloadZip;
+  const ncBtn = wrap.querySelector('#download-nocoords');
+  if(ncBtn) ncBtn.onclick = splDownloadNoCoords;
+  return wrap;
+}
+
+function splToMyMapsRows(rows){
+  const s = state.split;
+  const hasStatus = !!s.secondary;
+  const otherHeaders = s.primary.headers.filter(h=>h!==s.mapP.lat && h!==s.mapP.lng && h!==s.mapP.name);
+  const headers = ['Name','Latitude','Longitude', ...(hasStatus?['Status']:[]), ...otherHeaders];
+  const aoa = rows.map(r=>{
+    const name = s.mapP.name ? r[s.mapP.name] : r[s.mapP.key];
+    const lat = parseFloat(r[s.mapP.lat]), lng = parseFloat(r[s.mapP.lng]);
+    return [name, isNaN(lat)?r[s.mapP.lat]:lat, isNaN(lng)?r[s.mapP.lng]:lng, ...(hasStatus?[r.__status]:[]), ...otherHeaders.map(h=>r[h])];
+  });
+  return {headers, aoa};
+}
+function splToPlainRows(rows, headers){
+  const s = state.split;
+  const hasStatus = !!s.secondary;
+  const hdrs = hasStatus ? ['Status', ...headers] : headers;
+  const aoa = rows.map(r=>hasStatus ? [r.__status, ...headers.map(h=>r[h])] : headers.map(h=>r[h]));
+  return {headers: hdrs, aoa};
+}
+
+async function splDownloadZip(){
+  const s = state.split;
+  const ext = s.exportFormat;
+  const dt = DATASET_TYPES[s.datasetType];
+  const statusEl = $('#dl-status');
+  statusEl.innerHTML = '<span class="loading-ring" style="width:12px;height:12px;"></span> Building files...';
+  await new Promise(r=>setTimeout(r,20));
+  try{
+    const zip = new JSZip();
+    const hasStatus = !!s.secondary;
+    s.layers.layers.forEach(l=>{
+      const {headers, aoa} = splToMyMapsRows(l.rows);
+      // Latitude/Longitude sit at index 1,2; if a Status column was inserted it shifts nothing before them.
+      const file = buildExportFile(headers, aoa, ext, [1,2]);
+      zip.file(`${l.filenameBase}.${file.ext}`, file.bytes);
+    });
+    const blob = await zip.generateAsync({type:'blob'});
+    triggerDownload(blob, `${dt.label.replace(/\s+/g,'')}_MapLayers.zip`);
+    statusEl.innerHTML = 'Done ✓';
+  }catch(err){ statusEl.innerHTML = `<span style="color:var(--danger)">Failed: ${escapeHtml(err.message)}</span>`; }
+}
+function splDownloadNoCoords(){
+  const s = state.split;
+  const dt = DATASET_TYPES[s.datasetType];
+  try{
+    const {headers, aoa} = splToPlainRows(s.layers.noCoords, s.primary.headers);
+    const file = buildExportFile(headers, aoa, s.exportFormat);
+    triggerDownload(new Blob([file.bytes],{type:file.mime}), `${dt.label.replace(/\s+/g,'')}_NoCoordinates.${file.ext}`);
+  }catch(err){ $('#dl-status').innerHTML = `<span style="color:var(--danger)">Failed: ${escapeHtml(err.message)}</span>`; }
+}
+
+render();
+</script>
+</body>
+</html>
