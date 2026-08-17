@@ -405,9 +405,7 @@ function wireDropzone(wrap, id, onFile, onRemove){
 
 /* ---------------- export helpers (shared) ---------------- */
 
-// Build a real .xlsx file (not CSV) so ID columns keep their exact digits.
-// Excel and Google My Maps both read the actual cell type instead of us
-// having to fight CSV's "looks like a number" guessing.
+
 function buildXlsxBytes(headers, aoaRows){
   const ws = XLSX.utils.aoa_to_sheet([headers, ...aoaRows]);
   const wb = XLSX.utils.book_new();
@@ -415,11 +413,7 @@ function buildXlsxBytes(headers, aoaRows){
   return XLSX.write(wb, {bookType:'xlsx', type:'array'});
 }
 
-// CSV path: long all-digit values (account no, meter no, mobile no, etc.)
-// get wrapped as ="1234567890" — Excel treats a cell starting with = as a
-// formula, so it displays the digits exactly as typed instead of rounding
-// them into scientific notation (1.0011E+11). Google My Maps' CSV importer
-// reads straight past the formula wrapper and just uses the text value.
+
 const CSV_LONG_NUMERIC = /^\d{5,}$/;
 function csvCell(v){
   if(v===undefined||v===null) v='';
@@ -438,15 +432,11 @@ function buildCsvString(headers, aoaRows, rawColIndexes=[]){
     });
     lines.push(cells.join(','));
   });
-  // Leading UTF-8 BOM: without it, Excel on Windows guesses the system codepage
-  // instead of UTF-8, and consumer names in Bengali/Assamese/other regional
-  // scripts render as garbled boxes. The BOM forces Excel to read it correctly.
+
   return '\uFEFF' + lines.join('\r\n');
 }
 
-// Single entry point both flows use to turn {headers, aoa} into a downloadable
-// file, honoring the user's chosen format. rawCols = indexes that must stay
-// plain numbers (Latitude/Longitude) even in CSV mode.
+
 function buildExportFile(headers, aoa, format, rawCols=[]){
   if(format==='csv'){
     return { bytes: buildCsvString(headers, aoa, rawCols), mime:'text/csv;charset=utf-8', ext:'csv' };
@@ -477,10 +467,7 @@ function renderFormatToggle(current, onChange){
   return wrap;
 }
 
-// Shows the first ~8 rows of a chosen layer so the user can sanity-check the
-// data before downloading anything. Values shown here are the clean logical
-// values — the ="..." CSV trick is a file-encoding detail, not something
-// that should show up on screen.
+
 function renderPreview(layers, rowsToAoa, previewIdx, onLayerChange){
   if(!layers.length) return el(`<div></div>`);
   const idx = Math.min(previewIdx, layers.length-1);
