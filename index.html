@@ -23,7 +23,10 @@
 
   /* header */
   .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:14px;}
+  .header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .brand{display:flex;align-items:center;gap:12px;}
+  .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+  .section-head h2{margin:0 !important;}
   .brand-mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#8b6bff);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 18px rgba(91,124,250,.35);}
   .brand h1{font-size:19px;margin:0;font-weight:700;letter-spacing:-.01em;}
   .brand .tag{font-size:11px;color:var(--muted2);font-weight:600;letter-spacing:.04em;text-transform:uppercase;}
@@ -357,7 +360,12 @@ function renderHeader(){
             <div class="tag">Master · Survey · Installation data reconciliation</div>
           </div>
         </div>
-        ${modeLabel ? `<div class="mode-badge" id="switch-mode">↺ Change mode</div>` : ''}
+        ${modeLabel ? `
+          <div class="header-actions">
+            <div class="mode-badge" id="back-to-home">← Back</div>
+            <div class="mode-badge" id="switch-mode">↺ Change mode</div>
+          </div>
+        ` : ''}
       </div>
     </div>
   `);
@@ -368,7 +376,15 @@ function renderFooter(){
 }
 
 document.addEventListener('click', (e)=>{
-  if(e.target && e.target.id==='switch-mode'){
+  const backBtn = e.target.closest('#back-to-home');
+  if(backBtn){
+    state.mode = null;
+    render();
+    return;
+  }
+
+  const switchBtn = e.target.closest('#switch-mode');
+  if(switchBtn){
     state.mode = null;
     render();
   }
@@ -636,7 +652,10 @@ function cmpStep2(){
 
   wrap.appendChild(el(`
     <div class="card">
-      <h2>Step 2: Confirm the join key and coordinate columns</h2>
+      <div class="section-head">
+        <h2>Step 2: Confirm the join key and coordinate columns</h2>
+        <div class="mode-badge" id="cmp-back-to-step1">← Back</div>
+      </div>
       <div class="sub">Auto-detected where possible, override anything that's wrong. Fields marked * are required.</div>
       <div class="row">
         <div><label class="req">${labels.a}: Key column</label><select id="sel-a-key" class="${keyAMissing?'invalid':''}">${optionsFor(c.fileA.headers,c.mapA.key,true)}</select></div>
@@ -661,6 +680,8 @@ function cmpStep2(){
   wrap.querySelector('#sel-a-lat').onchange = e=>{ c.mapA.lat=e.target.value; render(); };
   wrap.querySelector('#sel-a-lng').onchange = e=>{ c.mapA.lng=e.target.value; render(); };
   wrap.querySelector('#sel-a-name').onchange = e=>c.mapA.name=e.target.value;
+  const cmpBackBtn = wrap.querySelector('#cmp-back-to-step1');
+  if(cmpBackBtn) cmpBackBtn.onclick = ()=>{ c.step=1; render(); };
   wrap.querySelector('#back1').onclick = ()=>{ c.step=1; render(); };
   const nextBtn = wrap.querySelector('#to-step3');
   if(canProceed) nextBtn.onclick = async ()=>{
@@ -696,7 +717,10 @@ function renderFilterGroupCard(opts){
   const filterFields = groupable.filter(f=>f!==opts.groupByField);
   const card = el(`
     <div class="card">
-      <h2>${opts.title}</h2>
+      <div class="section-head">
+        <h2>${opts.title}</h2>
+        <div class="mode-badge" data-step-back="true">← Back</div>
+      </div>
       <div class="sub">${opts.rows.length.toLocaleString()} rows before filtering.</div>
       <div class="row">
         <div>
@@ -732,6 +756,10 @@ function renderFilterGroupCard(opts){
   };
 
   const filterArea = card.querySelector('#filter-area');
+  const stepBackBtn = card.querySelector('[data-step-back="true"]');
+  if(stepBackBtn) stepBackBtn.onclick = ()=>{
+    if(opts.onBack) opts.onBack();
+  };
   filterFields.forEach(field=>{
     const values = [...new Set(opts.rows.map(r=>String(r[field]??'').trim()).filter(v=>v!==''))].sort();
     if(values.length===0 || values.length>60) return;
@@ -781,6 +809,7 @@ function cmpStep3(){
     groupByField: c.groupByField, chunkSize: c.chunkSize, filters: c.filters,
     onGroupByChange: (f)=>{ c.groupByField=f; render(); },
     onChunkChange: (v)=>{ c.chunkSize=v; },
+    onBack: ()=>{ c.step=2; render(); },
     onRerender: render,
   }));
   wrap.appendChild(el(`
@@ -877,7 +906,10 @@ function cmpStep4(){
   const wrap = el(`<div></div>`);
   wrap.appendChild(el(`
     <div class="card">
-      <h2>Step 4: Results</h2>
+      <div class="section-head">
+        <h2>Step 4: Results</h2>
+        <div class="mode-badge" id="cmp-back-to-step3">← Back</div>
+      </div>
       <div class="stat-grid">
         <div class="stat"><div class="num">${c.fileA.rows.length.toLocaleString()}</div><div class="lbl">${labels.a} total rows</div></div>
         <div class="stat"><div class="num">${c.fileB.rows.length.toLocaleString()}</div><div class="lbl">${labels.b} total rows</div></div>
@@ -930,6 +962,8 @@ function cmpStep4(){
     </div>
   `));
 
+  const cmpBackToStep3 = wrap.querySelector('#cmp-back-to-step3');
+  if(cmpBackToStep3) cmpBackToStep3.onclick = ()=>{ c.step=3; render(); };
   wrap.querySelector('#format-toggle-slot').appendChild(renderFormatToggle(c.exportFormat, (fmt)=>{ c.exportFormat=fmt; render(); }));
   wrap.querySelector('#preview-slot').appendChild(renderPreview(L.layers, cmpToMyMapsRows, c.previewLayerIdx, (i)=>{ c.previewLayerIdx=i; render(); }));
 
@@ -1123,7 +1157,10 @@ function splStep2(){
 
   wrap.appendChild(el(`
     <div class="card">
-      <h2>Step 2: Confirm coordinate columns${s.secondary?' and status match key':''}</h2>
+      <div class="section-head">
+        <h2>Step 2: Confirm coordinate columns${s.secondary?' and status match key':''}</h2>
+        <div class="mode-badge" id="spl-back-to-step1">← Back</div>
+      </div>
       <div class="sub">Auto-detected where possible, override anything that's wrong.</div>
       <div class="row">
         <div><label class="req">${dt.label}: Latitude column</label><select id="sel-lat" class="${latMissing?'invalid':''}">${optionsFor(s.primary.headers,s.mapP.lat,true)}</select></div>
@@ -1150,6 +1187,8 @@ function splStep2(){
   wrap.querySelector('#sel-name').onchange = e=>s.mapP.name=e.target.value;
   const pk = wrap.querySelector('#sel-p-key'); if(pk) pk.onchange = e=>{ s.mapP.key=e.target.value; render(); };
   const sk = wrap.querySelector('#sel-s-key'); if(sk) sk.onchange = e=>{ s.mapS.key=e.target.value; render(); };
+  const splBackBtn = wrap.querySelector('#spl-back-to-step1');
+  if(splBackBtn) splBackBtn.onclick = ()=>{ s.step=1; render(); };
   wrap.querySelector('#back1').onclick = ()=>{ s.step=1; render(); };
   const nextBtn = wrap.querySelector('#to-step3');
   if(canProceed) nextBtn.onclick = async ()=>{
@@ -1187,6 +1226,7 @@ function splStep3(){
     statusField: s.secondary ? '__status' : null,
     onGroupByChange: (f)=>{ s.groupByField=f; render(); },
     onChunkChange: (v)=>{ s.chunkSize=v; },
+    onBack: ()=>{ s.step=2; render(); },
     onRerender: render,
   }));
   wrap.appendChild(el(`
@@ -1228,7 +1268,10 @@ function splStep4(){
   const wrap = el(`<div></div>`);
   wrap.appendChild(el(`
     <div class="card">
-      <h2>Step 4: Results</h2>
+      <div class="section-head">
+        <h2>Step 4: Results</h2>
+        <div class="mode-badge" id="spl-back-to-step3">← Back</div>
+      </div>
       <div class="stat-grid">
         <div class="stat"><div class="num">${s.primary.rows.length.toLocaleString()}</div><div class="lbl">${dt.label} total rows</div></div>
         ${s.secondary?`
@@ -1283,6 +1326,8 @@ function splStep4(){
     </div>
   `));
 
+  const splBackToStep3 = wrap.querySelector('#spl-back-to-step3');
+  if(splBackToStep3) splBackToStep3.onclick = ()=>{ s.step=3; render(); };
   wrap.querySelector('#format-toggle-slot').appendChild(renderFormatToggle(s.exportFormat, (fmt)=>{ s.exportFormat=fmt; render(); }));
   wrap.querySelector('#preview-slot').appendChild(renderPreview(L.layers, splToMyMapsRows, s.previewLayerIdx, (i)=>{ s.previewLayerIdx=i; render(); }));
 
