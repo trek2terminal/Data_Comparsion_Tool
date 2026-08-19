@@ -525,6 +525,23 @@ function renderFormatToggle(current, onChange){
   return wrap;
 }
 
+function updateExportFormatUI(wrap, format){
+  wrap.querySelectorAll('[data-fmt]').forEach(opt=>{
+    opt.classList.toggle('active', opt.dataset.fmt===format);
+  });
+
+  const note = wrap.querySelector('#export-format-note');
+  if(note){
+    note.innerHTML = format==='xlsx'
+      ? 'Exporting as .xlsx, so long ID numbers like Account No or Meter No keep their exact digits (e.g. <code>100110302456</code>, not <code>1.0011E+11</code>) whether you open the file in Excel or import it straight into Google My Maps.'
+      : 'Exporting as .csv — long ID numbers are wrapped as <code>="100110302456"</code>, a formula trick that forces Excel and My Maps to keep the exact digits instead of converting them to scientific notation.';
+  }
+
+  wrap.querySelectorAll('.export-filename').forEach(name=>{
+    name.textContent = `${name.dataset.filename}.${format}`;
+  });
+}
+
 
 function renderPreview(layers, rowsToAoa, previewIdx, onLayerChange){
   if(!layers.length) return el(`<div></div>`);
@@ -926,10 +943,10 @@ function cmpStep4(){
           <div id="format-toggle-slot"></div>
         </div>
       </div>
-      ${ext==='xlsx'
-        ? `<div class="good-note">Exporting as .xlsx, so long ID numbers like Account No or Meter No keep their exact digits (e.g. <code>100110302456</code>, not <code>1.0011E+11</code>) whether you open the file in Excel or import it straight into Google My Maps.</div>`
-        : `<div class="good-note">Exporting as .csv — long ID numbers are wrapped as <code>="100110302456"</code>, a formula trick that forces Excel and My Maps to keep the exact digits instead of converting them to scientific notation.</div>`
-      }
+      <div class="good-note" id="export-format-note">${ext==='xlsx'
+        ? 'Exporting as .xlsx, so long ID numbers like Account No or Meter No keep their exact digits (e.g. <code>100110302456</code>, not <code>1.0011E+11</code>) whether you open the file in Excel or import it straight into Google My Maps.'
+        : 'Exporting as .csv — long ID numbers are wrapped as <code>="100110302456"</code>, a formula trick that forces Excel and My Maps to keep the exact digits instead of converting them to scientific notation.'}
+      </div>
 
       <h2 style="margin-top:22px;">Preview</h2>
       <div class="sub">A quick look at what's about to be exported, before you download anything.</div>
@@ -942,7 +959,7 @@ function cmpStep4(){
           <div class="layer-row ${c.selectedLayers.includes(idx)?'selected':''}">
             <div class="layer-main">
               <input type="checkbox" class="layer-check" data-layer-index="${idx}" ${c.selectedLayers.includes(idx)?'checked':''}>
-              <span class="fname">${escapeHtml(l.filenameBase)}.${ext}</span>
+              <span class="fname export-filename" data-filename="${escapeHtml(l.filenameBase)}">${escapeHtml(l.filenameBase)}.${ext}</span>
             </div>
             <div class="layer-meta">
               <span class="pill">${l.rows.length} rows</span>
@@ -964,7 +981,10 @@ function cmpStep4(){
 
   const cmpBackToStep3 = wrap.querySelector('#cmp-back-to-step3');
   if(cmpBackToStep3) cmpBackToStep3.onclick = ()=>{ c.step=3; render(); };
-  wrap.querySelector('#format-toggle-slot').appendChild(renderFormatToggle(c.exportFormat, (fmt)=>{ c.exportFormat=fmt; render(); }));
+  wrap.querySelector('#format-toggle-slot').appendChild(renderFormatToggle(c.exportFormat, (fmt)=>{
+    c.exportFormat=fmt;
+    updateExportFormatUI(wrap, fmt);
+  }));
   wrap.querySelector('#preview-slot').appendChild(renderPreview(L.layers, cmpToMyMapsRows, c.previewLayerIdx, (i)=>{ c.previewLayerIdx=i; render(); }));
 
   wrap.querySelectorAll('.layer-check').forEach(cb => {
@@ -1290,10 +1310,10 @@ function splStep4(){
           <div id="format-toggle-slot"></div>
         </div>
       </div>
-      ${ext==='xlsx'
-        ? `<div class="good-note">Exporting as .xlsx, so long ID numbers like Account No or Meter No keep their exact digits (e.g. <code>100110302456</code>, not <code>1.0011E+11</code>) whether you open the file in Excel or import it straight into Google My Maps.</div>`
-        : `<div class="good-note">Exporting as .csv — long ID numbers are wrapped as <code>="100110302456"</code>, a formula trick that forces Excel and My Maps to keep the exact digits instead of converting them to scientific notation.</div>`
-      }
+      <div class="good-note" id="export-format-note">${ext==='xlsx'
+        ? 'Exporting as .xlsx, so long ID numbers like Account No or Meter No keep their exact digits (e.g. <code>100110302456</code>, not <code>1.0011E+11</code>) whether you open the file in Excel or import it straight into Google My Maps.'
+        : 'Exporting as .csv — long ID numbers are wrapped as <code>="100110302456"</code>, a formula trick that forces Excel and My Maps to keep the exact digits instead of converting them to scientific notation.'}
+      </div>
 
       <h2 style="margin-top:22px;">Preview</h2>
       <div class="sub">A quick look at what's about to be exported, before you download anything.</div>
@@ -1306,7 +1326,7 @@ function splStep4(){
           <div class="layer-row ${s.selectedLayers.includes(idx)?'selected':''}">
             <div class="layer-main">
               <input type="checkbox" class="layer-check" data-layer-index="${idx}" ${s.selectedLayers.includes(idx)?'checked':''}>
-              <span class="fname">${escapeHtml(l.filenameBase)}.${ext}</span>
+              <span class="fname export-filename" data-filename="${escapeHtml(l.filenameBase)}">${escapeHtml(l.filenameBase)}.${ext}</span>
             </div>
             <div class="layer-meta">
               <span class="pill">${l.rows.length} rows</span>
@@ -1328,7 +1348,10 @@ function splStep4(){
 
   const splBackToStep3 = wrap.querySelector('#spl-back-to-step3');
   if(splBackToStep3) splBackToStep3.onclick = ()=>{ s.step=3; render(); };
-  wrap.querySelector('#format-toggle-slot').appendChild(renderFormatToggle(s.exportFormat, (fmt)=>{ s.exportFormat=fmt; render(); }));
+  wrap.querySelector('#format-toggle-slot').appendChild(renderFormatToggle(s.exportFormat, (fmt)=>{
+    s.exportFormat=fmt;
+    updateExportFormatUI(wrap, fmt);
+  }));
   wrap.querySelector('#preview-slot').appendChild(renderPreview(L.layers, splToMyMapsRows, s.previewLayerIdx, (i)=>{ s.previewLayerIdx=i; render(); }));
 
   wrap.querySelectorAll('.layer-check').forEach(cb => {
